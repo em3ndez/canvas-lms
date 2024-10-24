@@ -107,7 +107,12 @@ class GroupCategoriesController < ApplicationController
 
   # @API List group categories for a context
   #
-  # Returns a paginated list of group categories in a context
+  # Returns a paginated list of group categories in a context. The list returned
+  # depends on the permissions of the current user. If the user has group
+  # management permissions (`GRANULAR_MANAGE_GROUPS_PERMISSIONS`), the response will
+  # include only collaborative group categories. If the user has tag management
+  # permissions (`GRANULAR_MANAGE_TAGS_PERMISSIONS`), the response will include only
+  # non-collaborative group categories.
   #
   # @example_request
   #     curl https://<canvas>/api/v1/accounts/<account_id>/group_categories \
@@ -115,15 +120,37 @@ class GroupCategoriesController < ApplicationController
   #
   # @returns [GroupCategory]
   def index
-    @categories = @context.group_categories.preload(:root_account, :progresses)
+    scoped_categories = @context.group_categories.preload(:root_account, :progresses)
     respond_to do |format|
       format.json do
-        if authorized_action(@context, @current_user, [:manage_groups, *RoleOverride::GRANULAR_MANAGE_GROUPS_PERMISSIONS])
+        if authorized_action(@context, @current_user, [:manage_groups, *RoleOverride::GRANULAR_MANAGE_GROUPS_PERMISSIONS, *RoleOverride::GRANULAR_MANAGE_TAGS_PERMISSIONS])
+          can_view_groups = @context.grants_any_right?(
+            @current_user,
+            session,
+            :manage_groups,
+            *RoleOverride::GRANULAR_MANAGE_GROUPS_PERMISSIONS
+          )
+
+          can_view_tags = @context.grants_any_right?(
+            @current_user,
+            session,
+            *RoleOverride::GRANULAR_MANAGE_TAGS_PERMISSIONS
+          )
+          if !can_view_groups
+            # If can_view_groups permission is not granted, allow only non-collaborative categories
+            scoped_categories = scoped_categories.non_collaborative
+          elsif !can_view_tags
+            # If can_view_tags permission is not granted, allow only collaborative categories
+            scoped_categories = scoped_categories.collaborative
+          end
+
           path = send(:"api_v1_#{@context.class.to_s.downcase}_group_categories_url")
-          paginated_categories = Api.paginate(@categories, self, path)
+          paginated_categories = Api.paginate(scoped_categories, self, path)
+
           includes = ["progress_url"]
           includes.concat(params[:includes]) if params[:includes]
-          render json: paginated_categories.map { |c| group_category_json(c, @current_user, session, include: includes) }
+
+          render json: paginated_categories.map { |c| group_category_json(c, @current_user, session, include: includes) } if paginated_categories.present?
         end
       end
     end
@@ -156,6 +183,12 @@ class GroupCategoriesController < ApplicationController
   #
   # @argument name [Required, String]
   #   Name of the group category
+  #
+  # @argument non_collaborative [Boolean]
+  #  Can only be set by users with the Differentiated Tag Add permission
+  #
+  #  If set to true, groups in this category will be only be visible to users with the
+  #  Differentiated Tag Manage permission.
   #
   # @argument self_signup [String, "enabled"|"restricted"]
   #   Allow students to sign up for a group themselves (Course Only).
@@ -195,6 +228,13 @@ class GroupCategoriesController < ApplicationController
   # @returns GroupCategory
   def create
     if authorized_action(@context, @current_user, [:manage_groups, :manage_groups_add])
+      if (params[:category] && !!params[:category][:non_collaborative] && !@context.feature_enabled?(:differentiation_tags)) || !@context.grants_right?(@current_user, session, :manage_tags_add)
+        unless api_request?
+          flash.now[:notice] = t("notices.create_non_collaborative_group_unauthorized", "You do not have permission to create non_collaborative groups.")
+        end
+        return render json: { message: "You do not have permission to create non_collaborative groups." }, status: :unauthorized
+      end
+
       @group_category = @context.group_categories.build
       if populate_group_category_from_params
         if api_request?

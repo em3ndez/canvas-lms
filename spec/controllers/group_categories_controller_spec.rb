@@ -159,6 +159,54 @@ describe GroupCategoriesController do
       expect(assigns[:group_category]).not_to be_nil
       expect(assigns[:group_category]).to be_restricted_self_signup
     end
+
+    context "differentiation_tags" do
+      before do
+        Account.default.enable_feature!(:differentiation_tags)
+      end
+
+      it "allows teachers with :manage_tags_add to create non_collaborative groups" do
+        @course.account.role_overrides.create!({
+                                                 role: teacher_role,
+                                                 permission: :manage_tags_add,
+                                                 enabled: true
+                                               })
+        user_session(@teacher)
+
+        post "create", params: { course_id: @course.id, category: { name: "Hidden GC", non_collaborative: true } }
+        expect(response).to be_successful
+        expect(assigns[:group_category]).to be_non_collaborative
+      end
+
+      it "prevents teachers without :manage_tags_add from creating non_collaborative groups" do
+        @course.account.role_overrides.create!({
+                                                 role: teacher_role,
+                                                 permission: :manage_tags_add,
+                                                 enabled: false
+                                               })
+        user_session(@teacher)
+
+        post "create", params: { course_id: @course.id, category: { name: "Hidden GC", non_collaborative: true } }
+
+        expect(response).to be_unauthorized
+        expect(response.body).to include("You do not have permission to create non_collaborative groups.")
+      end
+
+      it "prevents teachers from creating non_collaborative groups if differentiation_tags is disabled" do
+        Account.default.disable_feature!(:differentiation_tags)
+        @course.account.role_overrides.create!({
+                                                 role: teacher_role,
+                                                 permission: :manage_tags_add,
+                                                 enabled: true
+                                               })
+        user_session(@teacher)
+
+        post "create", params: { course_id: @course.id, category: { name: "Hidden GC", non_collaborative: true } }
+
+        expect(response).to be_unauthorized
+        expect(response.body).to include("You do not have permission to create non_collaborative groups.")
+      end
+    end
   end
 
   describe "PUT update" do
@@ -440,6 +488,67 @@ describe GroupCategoriesController do
       run_jobs
 
       expect_imported_groups
+    end
+  end
+
+  describe "GET index" do
+    before :once do
+      @collaborative_category = @course.group_categories.create!(name: "Collaborative Groups", non_collaborative: false)
+      @non_collaborative_category = @course.group_categories.create!(name: "Non-Collaborative Groups", non_collaborative: true)
+    end
+
+    it "returns both collaborative and non-collaborative group categories when user has both group and tag management permissions" do
+      user_session(@teacher)
+
+      get "index", params: { course_id: @course.id }, format: :json
+      json = response.parsed_body
+
+      expect(response).to be_successful
+      expect(json.count).to eq 2
+      expect(json.pluck("name")).to include("Collaborative Groups", "Non-Collaborative Groups")
+    end
+
+    it "returns only collaborative group categories if tag management permissions are revoked" do
+      RoleOverride::GRANULAR_MANAGE_TAGS_PERMISSIONS.each do |permission|
+        @course.account.role_overrides.create!(
+          permission:,
+          role: teacher_role,
+          enabled: false
+        )
+      end
+      user_session(@teacher)
+
+      get "index", params: { course_id: @course.id }, format: :json
+      json = response.parsed_body
+
+      expect(response).to be_successful
+      expect(json.count).to eq 1
+      expect(json[0]["name"]).to eq "Collaborative Groups"
+    end
+
+    it "returns only non-collaborative group categories if group management permissions are revoked" do
+      RoleOverride::GRANULAR_MANAGE_GROUPS_PERMISSIONS.each do |permission|
+        @course.account.role_overrides.create!(
+          permission:,
+          role: teacher_role,
+          enabled: false
+        )
+      end
+      user_session(@teacher)
+
+      get "index", params: { course_id: @course.id }, format: :json
+      json = response.parsed_body
+
+      expect(response).to be_successful
+      expect(json.count).to eq 1
+      expect(json[0]["name"]).to eq "Non-Collaborative Groups"
+    end
+
+    it "returns unauthorized when user has no permissions" do
+      user_session(@student)
+
+      get "index", params: { course_id: @course.id }, format: :json
+      assert_unauthorized
     end
   end
 end

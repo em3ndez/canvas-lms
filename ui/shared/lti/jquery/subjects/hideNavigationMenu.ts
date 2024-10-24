@@ -16,11 +16,12 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {NewPageStepper} from './NewPageStepper'
-import {Step1} from './Step1'
-import {PageSections} from './PageSections'
-import {ColorPalette} from './ColorPalette'
-import {FontPairings} from './FontPairings'
-import {PageTemplates} from './PageTemplates'
+import {hideCourseNav} from '@canvas/courses/jquery/toggleCourseNav'
+import type {LtiMessageHandler} from '../lti_message_handler'
 
-export {NewPageStepper, Step1, PageSections, ColorPalette, FontPairings, PageTemplates}
+const handler: LtiMessageHandler = () => {
+  hideCourseNav()
+  return false
+}
+
+export default handler

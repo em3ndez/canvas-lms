@@ -18,7 +18,7 @@
 
 import React from 'react'
 import {render} from '@testing-library/react'
-import SignInLinks from '../SignInLinks'
+import {SignInLinks} from '../index'
 import {MemoryRouter} from 'react-router-dom'
 
 describe('SignInLinks', () => {

@@ -87,6 +87,7 @@ export type RubricFormComponentProp = {
   hideHeader?: boolean
   rubric?: Rubric
   rubricAssociation?: RubricAssociation
+  showAdditionalOptions?: boolean
   onLoadRubric?: (rubricTitle: string) => void
   onSaveRubric: (savedRubricResponse: SaveRubricResponse) => void
   onCancel: () => void
@@ -103,6 +104,7 @@ export const RubricForm = ({
   hideHeader = false,
   rubric,
   rubricAssociation,
+  showAdditionalOptions = false,
   onLoadRubric,
   onSaveRubric,
   onCancel,
@@ -271,6 +273,7 @@ export const RubricForm = ({
         disableGroupImport: true,
         rootOutcomeGroup: new OutcomeGroup(rootOutcomeGroup),
         url: '/outcomes/find_dialog',
+        zIndex: 10000,
       })
       dialog?.show()
       ;(dialog as any).on('import', (outcomeData: any) => {
@@ -400,70 +403,78 @@ export const RubricForm = ({
                 ]}
               />
             </Flex.Item>
-            <Flex.Item margin="0 0 0 small">
-              <GradingTypeSelect
-                onChange={isFreeFormComments => {
-                  setRubricFormField('freeFormCriterionComments', isFreeFormComments)
-                }}
-                freeFormCriterionComments={rubricForm.freeFormCriterionComments}
-              />
-            </Flex.Item>
             {rubricForm.unassessed && (
-              <Flex.Item margin="0 0 0 small">
-                <RubricRatingOrderSelect
-                  ratingOrder={rubricForm.ratingOrder}
-                  onChangeOrder={ratingOrder => setRubricFormField('ratingOrder', ratingOrder)}
-                />
-              </Flex.Item>
-            )}
-            <Flex.Item margin="0 0 0 small">
-              <ScoringTypeSelect
-                hidePoints={rubricForm.hidePoints}
-                onChange={() => {
-                  setRubricFormField('hidePoints', !rubricForm.hidePoints)
-                  setRubricFormField('hideScoreTotal', false)
-                  setRubricFormField('useForGrading', false)
-                }}
-              />
-            </Flex.Item>
-          </Flex>
-
-          <Flex margin="medium 0 0" gap="medium">
-            <Flex.Item>
-              <Checkbox
-                label={"Don't post to Learning Mastery Gradebook"}
-                checked={rubricForm.hideOutcomeResults}
-                onChange={e => setRubricFormField('hideOutcomeResults', e.target.checked)}
-                data-testid="hide-outcome-results-checkbox"
-              />
-            </Flex.Item>
-            {!rubricForm.hidePoints && (
               <>
-                <Flex.Item>
-                  <Checkbox
-                    label="Use this rubric for assignment grading"
-                    checked={rubricForm.useForGrading}
-                    onChange={e => {
-                      setRubricFormField('useForGrading', e.target.checked)
-                      setRubricFormField('hideScoreTotal', false)
-                    }}
-                    data-testid="use-for-grading-checkbox"
+                {showAdditionalOptions && (
+                  <Flex.Item margin="0 0 0 small">
+                    <GradingTypeSelect
+                      onChange={isFreeFormComments => {
+                        setRubricFormField('freeFormCriterionComments', isFreeFormComments)
+                      }}
+                      freeFormCriterionComments={rubricForm.freeFormCriterionComments}
+                    />
+                  </Flex.Item>
+                )}
+                <Flex.Item margin="0 0 0 small">
+                  <RubricRatingOrderSelect
+                    ratingOrder={rubricForm.ratingOrder}
+                    onChangeOrder={ratingOrder => setRubricFormField('ratingOrder', ratingOrder)}
                   />
                 </Flex.Item>
-
-                {!rubricForm.useForGrading && (
-                  <Flex.Item>
-                    <Checkbox
-                      label="Hide rubric score total from students"
-                      checked={rubricForm.hideScoreTotal}
-                      onChange={e => setRubricFormField('hideScoreTotal', e.target.checked)}
-                      data-testid="hide-score-total-checkbox"
+                {showAdditionalOptions && (
+                  <Flex.Item margin="0 0 0 small">
+                    <ScoringTypeSelect
+                      hidePoints={rubricForm.hidePoints}
+                      onChange={() => {
+                        setRubricFormField('hidePoints', !rubricForm.hidePoints)
+                        setRubricFormField('hideScoreTotal', false)
+                        setRubricFormField('useForGrading', false)
+                      }}
                     />
                   </Flex.Item>
                 )}
               </>
             )}
           </Flex>
+
+          {showAdditionalOptions && (
+            <Flex margin="medium 0 0" gap="medium">
+              <Flex.Item>
+                <Checkbox
+                  label={"Don't post to Learning Mastery Gradebook"}
+                  checked={rubricForm.hideOutcomeResults}
+                  onChange={e => setRubricFormField('hideOutcomeResults', e.target.checked)}
+                  data-testid="hide-outcome-results-checkbox"
+                />
+              </Flex.Item>
+              {!rubricForm.hidePoints && (
+                <>
+                  <Flex.Item>
+                    <Checkbox
+                      label="Use this rubric for assignment grading"
+                      checked={rubricForm.useForGrading}
+                      onChange={e => {
+                        setRubricFormField('useForGrading', e.target.checked)
+                        setRubricFormField('hideScoreTotal', false)
+                      }}
+                      data-testid="use-for-grading-checkbox"
+                    />
+                  </Flex.Item>
+
+                  {!rubricForm.useForGrading && (
+                    <Flex.Item>
+                      <Checkbox
+                        label="Hide rubric score total from students"
+                        checked={rubricForm.hideScoreTotal}
+                        onChange={e => setRubricFormField('hideScoreTotal', e.target.checked)}
+                        data-testid="hide-score-total-checkbox"
+                      />
+                    </Flex.Item>
+                  )}
+                </>
+              )}
+            </Flex>
+          )}
 
           <View as="div" margin="large 0 large 0">
             <Flex>

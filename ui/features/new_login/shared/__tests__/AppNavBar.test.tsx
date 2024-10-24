@@ -16,18 +16,17 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-export type PageStandardSection =
-  | 'navigation'
-  | 'heroWithText'
-  | 'about'
-  | 'resources'
-  | 'footer'
-  | 'tabs'
-export type PageCanvasSection =
-  | 'question'
-  | 'announcement'
-  | 'discussion'
-  | 'assignment'
-  | 'module'
-  | 'blank'
-export type PageSection = PageStandardSection | PageCanvasSection
+import React from 'react'
+import {render} from '@testing-library/react'
+import {AppNavBar} from '../index'
+import {MemoryRouter} from 'react-router-dom'
+
+describe('AppNavBar', () => {
+  it('mounts without crashing', () => {
+    render(
+      <MemoryRouter>
+        <AppNavBar />
+      </MemoryRouter>
+    )
+  })
+})
