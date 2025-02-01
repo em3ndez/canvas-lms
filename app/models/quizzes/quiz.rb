@@ -45,13 +45,13 @@ class Quizzes::Quiz < ActiveRecord::Base
   has_many :quiz_statistics, -> { order(:created_at) }, class_name: "Quizzes::QuizStatistics"
   has_many :attachments, as: :context, inverse_of: :context, dependent: :destroy
   has_many :quiz_regrades, class_name: "Quizzes::QuizRegrade"
-  has_many :quiz_student_visibilities
   belongs_to :context, polymorphic: [:course]
   belongs_to :assignment, inverse_of: :quiz, class_name: "AbstractAssignment"
   belongs_to :assignment_group
   belongs_to :root_account, class_name: "Account"
   has_many :ignores, as: :asset
   has_one :master_content_tag, class_name: "MasterCourses::MasterContentTag", inverse_of: :quiz
+  has_one :estimated_duration, dependent: :destroy, inverse_of: :quiz
 
   validates :description, length: { maximum: maximum_long_text_length, allow_blank: true }
   validates :title, length: { maximum: maximum_string_length, allow_nil: true }
