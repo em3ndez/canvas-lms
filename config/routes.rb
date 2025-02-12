@@ -1102,7 +1102,6 @@ CanvasRails::Application.routes.draw do
   scope(controller: :translation) do
     post "courses/:course_id/translate", action: :translate, as: :translate
     post "courses/:course_id/translate/paragraph", action: :translate_paragraph, as: :translate_paragraph
-    post "translate/message", action: :translate_message, as: :translate_message
   end
 
   ### API routes ###
@@ -2311,6 +2310,7 @@ CanvasRails::Application.routes.draw do
       get "group_categories/:group_category_id/users", action: :users, as: "group_category_users"
       get "group_categories/:group_category_id/export", action: :export, as: "group_category_export", defaults: { format: :csv }
       post "group_categories/:group_category_id/assign_unassigned_members", action: "assign_unassigned_members", as: "group_category_assign_unassigned_members"
+      post "group_categories/:group_category_id/bulk_manage_groups", action: :bulk_manage_groups
     end
 
     scope(controller: :progress) do
@@ -2901,10 +2901,17 @@ CanvasRails::Application.routes.draw do
       get "courses/:course_id/progress/:id", action: :show, as: :lti_progress_show
     end
 
+    # Asset Service & Asset Report Service (LTI Asset Processor Specs)
+    scope(controller: "lti/ims/asset_processor") do
+      post "asset_processor/:asset_processor_id/report", action: :create_report, as: :lti_asset_processor_create_report
+      get "asset_processor/:asset_processor_id/asset/:asset_id", action: :lti_asset_show, as: :lti_asset_processor_asset_show
+    end
+
     # Dynamic Registration Service
     scope(controller: "lti/ims/dynamic_registration") do
       get "accounts/:account_id/registration_token", action: :registration_token
-      get "accounts/:account_id/registrations/uuid/:registration_uuid", action: :registration_by_uuid
+      get "accounts/:account_id/registrations/uuid/:registration_uuid", action: :ims_registration_by_uuid
+      get "accounts/:account_id/lti_registrations/uuid/:registration_uuid", action: :lti_registration_by_uuid
       get "accounts/:account_id/registrations/:registration_id", action: :show
       put "accounts/:account_id/registrations/:registration_id/overlay", action: :update_registration_overlay
       get "accounts/:account_id/dr_iframe", action: :dr_iframe

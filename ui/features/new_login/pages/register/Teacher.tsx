@@ -104,7 +104,7 @@ const Teacher = () => {
     // email address
     if (errors.pseudonym?.unique_id?.length) {
       const errorKey = `pseudonym.unique_id.${errors.pseudonym.unique_id[0]?.type}`
-      setEmailError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setEmailError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
 
       if (!hasFocusedError) {
         emailInputRef.current?.focus()
@@ -115,7 +115,7 @@ const Teacher = () => {
     // full name
     if (errors.user?.name?.length) {
       const errorKey = `user.name.${errors.user.name[0]?.type}`
-      setNameError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setNameError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
 
       if (!hasFocusedError) {
         nameInputRef.current?.focus()
@@ -126,7 +126,7 @@ const Teacher = () => {
     // terms of use
     if (errors.user?.terms_of_use?.length) {
       const errorKey = `user.terms_of_use.${errors.user.terms_of_use[0]?.type}`
-      setTermsError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setTermsError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
 
       if (!hasFocusedError) {
         const checkbox = document.getElementById('terms-checkbox') as HTMLInputElement
@@ -221,7 +221,7 @@ const Teacher = () => {
           {I18n.t('Create a Teacher Account')}
         </Heading>
 
-        <Text>{I18n.t('All fields are required.')}</Text>
+        <Text>{I18n.t('* Required Fields')}</Text>
       </Flex>
 
       <form onSubmit={handleCreateTeacher} noValidate={true}>
@@ -236,6 +236,8 @@ const Teacher = () => {
               onChange={handleEmailChange}
               renderLabel={I18n.t('Email Address')}
               value={email}
+              isRequired={true}
+              data-testid="email-input"
             />
 
             <TextInput
@@ -246,6 +248,8 @@ const Teacher = () => {
               onChange={handleNameChange}
               renderLabel={I18n.t('Full Name')}
               value={name}
+              isRequired={true}
+              data-testid="name-input"
             />
           </Flex>
 
@@ -259,6 +263,7 @@ const Teacher = () => {
                 onChange={handleTermsChange}
                 privacyPolicyUrl={privacyPolicyUrl}
                 termsOfUseUrl={termsOfUseUrl}
+                isRequired={true}
               />
             </Flex.Item>
           )}
@@ -283,7 +288,13 @@ const Teacher = () => {
               {I18n.t('Back to Login')}
             </Button>
 
-            <Button type="submit" color="primary" display="block" disabled={isUiActionPending}>
+            <Button
+              type="submit"
+              color="primary"
+              display="block"
+              disabled={isUiActionPending}
+              data-testid="submit-button"
+            >
               {I18n.t('Next')}
             </Button>
           </Flex>

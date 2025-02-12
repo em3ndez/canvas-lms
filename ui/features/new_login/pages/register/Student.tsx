@@ -113,7 +113,8 @@ const Student = () => {
       if (errorKey) {
         setPasswordError(
           // using server error messaging here to avoid duplication
-          serverErrorsMap[`pseudonym.password.${errorKey}`] || I18n.t('An unknown error occurred.'),
+          serverErrorsMap[`pseudonym.password.${errorKey}`]?.() ||
+            I18n.t('An unknown error occurred.'),
         )
         passwordInputRef.current?.focus()
         return false
@@ -166,7 +167,7 @@ const Student = () => {
     // full name
     if (errors.user?.name?.length) {
       const errorKey = `user.name.${errors.user.name[0]?.type}`
-      setNameError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setNameError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
       if (!hasFocusedError) {
         nameInputRef.current?.focus()
         hasFocusedError = true
@@ -176,7 +177,7 @@ const Student = () => {
     // username
     if (errors.pseudonym?.unique_id?.length) {
       const errorKey = `pseudonym.unique_id.${errors.pseudonym.unique_id[0]?.type}`
-      setUsernameError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setUsernameError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
       if (!hasFocusedError) {
         usernameInputRef.current?.focus()
         hasFocusedError = true
@@ -186,7 +187,7 @@ const Student = () => {
     // password
     if (errors.pseudonym?.password?.length) {
       const errorKey = `pseudonym.password.${errors.pseudonym.password[0]?.type}`
-      setPasswordError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setPasswordError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
       if (!hasFocusedError) {
         passwordInputRef.current?.focus()
         hasFocusedError = true
@@ -196,7 +197,7 @@ const Student = () => {
     // confirm password
     if (errors.pseudonym?.password_confirmation?.length) {
       const errorKey = `pseudonym.password_confirmation.${errors.pseudonym.password_confirmation[0]?.type}`
-      setConfirmPasswordError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setConfirmPasswordError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
       if (!hasFocusedError) {
         confirmPasswordInputRef.current?.focus()
         hasFocusedError = true
@@ -206,7 +207,7 @@ const Student = () => {
     // join code
     if (errors.user?.self_enrollment_code?.length) {
       const errorKey = `user.self_enrollment_code.${errors.user.self_enrollment_code[0]?.type}`
-      setJoinCodeError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setJoinCodeError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
       if (!hasFocusedError) {
         joinCodeInputRef.current?.focus()
         hasFocusedError = true
@@ -216,7 +217,7 @@ const Student = () => {
     // terms of use
     if (errors.user?.terms_of_use?.length) {
       const errorKey = `user.terms_of_use.${errors.user.terms_of_use[0]?.type}`
-      setTermsError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setTermsError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
       if (!hasFocusedError) {
         const checkbox = document.getElementById('terms-checkbox') as HTMLInputElement
         checkbox?.focus()
@@ -326,7 +327,7 @@ const Student = () => {
           {I18n.t('Create a Student Account')}
         </Heading>
 
-        <Text>{I18n.t('All fields are required.')}</Text>
+        <Text>{I18n.t('* Required Fields')}</Text>
       </Flex>
 
       <form onSubmit={handleCreateStudent} noValidate={true}>
@@ -339,6 +340,8 @@ const Student = () => {
               onChange={(_, value) => setName(value)}
               renderLabel={I18n.t('Full Name')}
               value={name}
+              isRequired={true}
+              data-testid="name-input"
             />
 
             <TextInput
@@ -351,6 +354,8 @@ const Student = () => {
               onChange={handleUsernameChange}
               renderLabel={I18n.t('Username')}
               value={username}
+              isRequired={true}
+              data-testid="username-input"
             />
 
             <TextInput
@@ -362,6 +367,8 @@ const Student = () => {
               renderLabel={I18n.t('Password')}
               type="password"
               value={password}
+              isRequired={true}
+              data-testid="password-input"
             />
 
             <TextInput
@@ -373,6 +380,8 @@ const Student = () => {
               renderLabel={I18n.t('Confirm Password')}
               type="password"
               value={confirmPassword}
+              isRequired={true}
+              data-testid="confirm-password-input"
             />
 
             <TextInput
@@ -384,6 +393,8 @@ const Student = () => {
               onChange={handleJoinCodeChange}
               renderLabel={I18n.t('Join Code')}
               value={joinCode}
+              isRequired={true}
+              data-testid="join-code-input"
             />
 
             {requireEmail && (
@@ -396,6 +407,8 @@ const Student = () => {
                 onChange={handleEmailChange}
                 renderLabel={I18n.t('Email Address')}
                 value={email}
+                isRequired={true}
+                data-testid="email-input"
               />
             )}
           </Flex>
@@ -410,6 +423,7 @@ const Student = () => {
                 onChange={handleTermsChange}
                 privacyPolicyUrl={privacyPolicyUrl}
                 termsOfUseUrl={termsOfUseUrl}
+                isRequired={true}
               />
             </Flex.Item>
           )}
@@ -434,7 +448,13 @@ const Student = () => {
               {I18n.t('Back to Login')}
             </Button>
 
-            <Button type="submit" color="primary" display="block" disabled={isUiActionPending}>
+            <Button
+              type="submit"
+              color="primary"
+              display="block"
+              disabled={isUiActionPending}
+              data-testid="submit-button"
+            >
               {I18n.t('Next')}
             </Button>
           </Flex>

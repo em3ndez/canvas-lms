@@ -40,20 +40,14 @@ import {
 } from '@canvas/upload-media-translations'
 import {Modal} from '@instructure/ui-modal'
 import {NumberInput} from '@instructure/ui-number-input'
-import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {SimpleSelect} from '@instructure/ui-simple-select'
 import {Table} from '@instructure/ui-table'
 import {Text} from '@instructure/ui-text'
 import {TextArea} from '@instructure/ui-text-area'
 import {TextInput} from '@instructure/ui-text-input'
 import _ from 'lodash'
-import {
-  OBSERVER_ENROLLMENTS_QUERY,
-  type ObserverEnrollmentQueryResult,
-  type ObserverEnrollmentConnectionUser,
-} from '../graphql/Queries'
+import {type ObserverEnrollmentConnectionUser} from '../graphql/Queries'
 import Pill from './Pill'
-import {useQuery} from '@apollo/client'
 import {AlertManagerContext} from '@canvas/alerts/react/AlertManager'
 import {
   FileAttachmentUpload,
@@ -63,9 +57,9 @@ import {
   addAttachmentsFn,
   removeAttachmentFn,
 } from '@canvas/message-attachments'
-import type {CamelizedAssignment, CamelizedStudent} from '@canvas/grading/grading.d'
+import type {CamelizedAssignment} from '@canvas/grading/grading.d'
 import {View} from '@instructure/ui-view'
-import type {AxiosResponse} from 'axios'
+import {useObserverEnrollments} from './hooks/useObserverEnrollments'
 
 export enum MSWLaunchContext {
   ASSIGNMENT_CONTEXT,
@@ -291,12 +285,12 @@ function filterStudents(criterion: FilterCriterion, students: Student[], cutoff:
         }
         break
       case 'scored_more_than':
-        if (student.score && student.score > cutoff) {
+        if (typeof student.score === 'number' && student.score > cutoff) {
           newfilteredStudents.push(student)
         }
         break
       case 'scored_less_than':
-        if (student.score && student.score < cutoff) {
+        if (typeof student.score === 'number' && student.score < cutoff) {
           newfilteredStudents.push(student)
         }
         break
@@ -311,12 +305,12 @@ function filterStudents(criterion: FilterCriterion, students: Student[], cutoff:
         }
         break
       case 'total_grade_higher_than':
-        if (student.currentScore && student.currentScore > cutoff) {
+        if (typeof student.currentScore === 'number' && student.currentScore > cutoff) {
           newfilteredStudents.push(student)
         }
         break
       case 'total_grade_lower_than':
-        if (student.currentScore && student.currentScore < cutoff) {
+        if (typeof student.currentScore === 'number' && student.currentScore < cutoff) {
           newfilteredStudents.push(student)
         }
         break
@@ -439,14 +433,10 @@ const MessageStudentsWhoDialog = ({
   const [mediaTitle, setMediaTitle] = useState<string>('')
   const close = () => setOpen(false)
 
-  const {loading, data} = useQuery<ObserverEnrollmentQueryResult>(OBSERVER_ENROLLMENTS_QUERY, {
-    variables: {
-      courseId: assignment?.courseId || courseId,
-      studentIds: students.map(student => student.id),
-    },
-  })
-
-  const observerEnrollments = data?.course?.enrollmentsConnection?.nodes || []
+  const {loading, observerEnrollments} = useObserverEnrollments(
+    assignment?.courseId || courseId,
+    students,
+  )
 
   const observersByStudentID = observerEnrollments.reduce(
     (results, enrollment) => {
@@ -531,12 +521,12 @@ const MessageStudentsWhoDialog = ({
     selectedStudents.length + Object.values(selectedObservers).flat().length > 0
 
   useEffect(() => {
-    if (!loading && data) {
+    if (!loading && observerEnrollments) {
       setObserverRecipientCount(calculateObserverRecipientCount(selectedObservers))
     }
   }, [
     loading,
-    data,
+    observerEnrollments,
     selectedCriterion,
     sortedStudents,
     cutoff,
@@ -715,7 +705,8 @@ const MessageStudentsWhoDialog = ({
       setSelectedObservers(
         filteredStudents.reduce(
           (map, student) => {
-            map[student.id] = [...observersByStudentID[student.id].map(observer => observer._id)]
+            const observersForStudent = observersByStudentID[student.id] ?? []
+            map[student.id] = [...observersForStudent.map(observer => observer._id)]
 
             return map
           },

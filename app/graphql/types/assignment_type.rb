@@ -168,6 +168,14 @@ module Types
             null: true
     end
 
+    class AnonymousStudentIdentityType < ApplicationObjectType
+      description "An anonymous student identity"
+
+      field :anonymous_id, ID, null: false
+      field :name, String, null: false
+      field :position, Int, null: false
+    end
+
     global_id_field :id
 
     field :name, String, null: true
@@ -502,6 +510,14 @@ module Types
           "specifies that students can self-assess using the assignment rubric.",
           null: true
 
+    field :can_update_rubric_self_assessment,
+          Boolean,
+          "specifies that the current user can update the rubric self-assessment.",
+          null: true
+    def can_update_rubric_self_assessment
+      assignment.can_update_rubric_self_assessment?
+    end
+
     field :group_set, GroupSetType, null: true
     def group_set
       load_association(:group_category)
@@ -635,6 +651,13 @@ module Types
 
         scope
       end
+    end
+
+    field :anonymous_student_identities, [AnonymousStudentIdentityType], null: true
+    def anonymous_student_identities
+      return nil unless assignment.context.grants_right?(current_user, :manage_grades)
+
+      assignment.anonymous_student_identities.values
     end
   end
 end

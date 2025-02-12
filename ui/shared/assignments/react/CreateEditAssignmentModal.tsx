@@ -71,7 +71,7 @@ export type CreateEditAssignmentModalProps = {
   assignment: ModalAssignment | undefined
   userIsAdmin: boolean
   onCloseHandler: () => void
-  onSaveHandler: (data: SaveProps) => Promise<void>
+  onSaveHandler: (data: SaveProps, isNewAssignment: boolean) => Promise<void>
   onMoreOptionsHandler: (data: MoreOptionsProps, isNewAssignment: boolean) => void
   timezone: string
   validDueAtRange: any | undefined
@@ -88,6 +88,10 @@ export type CreateEditAssignmentModalProps = {
 type AssignmentTypeIndex = {
   [type: string]: string
 }
+
+const assignmentTypeOptions = ENV.horizon_course
+  ? ['none', 'external_tool', 'not_graded']
+  : ['none', 'discussion_topic', 'online_quiz', 'external_tool', 'not_graded']
 
 const CreateEditAssignmentModal = ({
   assignment,
@@ -131,13 +135,6 @@ const CreateEditAssignmentModal = ({
   const [nameInputMessage, setNameInputMessage] = useState<FormMessage[]>([])
   const [dueDateInputMessage, setDueDateInputMessage] = useState<FormMessage[]>([])
 
-  const assignmentTypeOptions = [
-    'none',
-    'discussion_topic',
-    'online_quiz',
-    'external_tool',
-    'not_graded',
-  ]
   const assignmentTypeLabels: AssignmentTypeIndex = {
     none: I18n.t('Assignment'),
     discussion_topic: I18n.t('Discussion'),
@@ -275,7 +272,7 @@ const CreateEditAssignmentModal = ({
       setFieldWithError(null)
     }
   }, [fieldWithError, inputElRefs])
-
+  
   const validForm = () => {
     const validType = isEditMode ? true : validateAssignmentType(assignmentType)
     const validName = validateAssignmentName(name)
@@ -363,7 +360,7 @@ const CreateEditAssignmentModal = ({
       points,
       syncToSIS,
       publish: false,
-    })
+    }, !isEditMode)
 
     onCloseHandler()
   }
@@ -382,7 +379,7 @@ const CreateEditAssignmentModal = ({
       points,
       syncToSIS,
       publish: true,
-    })
+    }, !isEditMode)
 
     onCloseHandler()
   }

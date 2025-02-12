@@ -20,15 +20,12 @@ import {showFlashAlert} from '@canvas/alerts/react/FlashAlert'
 import GenericErrorPage from '@canvas/generic-error-page/react'
 import {useScope as createI18nScope} from '@canvas/i18n'
 import errorShipUrl from '@canvas/images/ErrorShip.svg'
-import {Button} from '@instructure/ui-buttons'
 import {Flex} from '@instructure/ui-flex'
-import {Modal} from '@instructure/ui-modal'
 import {ProgressBar} from '@instructure/ui-progress'
 import {Spinner} from '@instructure/ui-spinner'
 import React from 'react'
 import type {AccountId} from '../model/AccountId'
 import type {UnifiedToolId} from '../model/UnifiedToolId'
-import type {LtiImsRegistrationId} from '../model/lti_ims_registration/LtiImsRegistrationId'
 import {RegistrationModalBody} from '../registration_wizard/RegistrationModalBody'
 import type {DynamicRegistrationWizardService} from './DynamicRegistrationWizardService'
 import {
@@ -43,6 +40,8 @@ import {PrivacyConfirmationWrapper} from './components/PrivacyConfirmationWrappe
 import {ReviewScreenWrapper} from './components/ReviewScreenWrapper'
 import {isUnsuccessful} from '../../common/lib/apiResult/ApiResult'
 import {Footer} from '../registration_wizard_forms/Footer'
+import {isLtiPlacementWithIcon, type LtiPlacement} from '../model/LtiPlacement'
+import type {LtiRegistrationId} from '../model/LtiRegistrationId'
 
 const I18n = createI18nScope('lti_registrations')
 
@@ -53,7 +52,7 @@ export type DynamicRegistrationWizardProps = {
   unregister: () => void
   onSuccessfulRegistration: () => void
   service: DynamicRegistrationWizardService
-  registrationId?: LtiImsRegistrationId
+  registrationId?: LtiRegistrationId
 }
 
 export const DynamicRegistrationWizard = (props: DynamicRegistrationWizardProps) => {
@@ -175,7 +174,8 @@ export const DynamicRegistrationWizard = (props: DynamicRegistrationWizardProps)
               if (!props.registrationId) {
                 const result = await dynamicRegistrationWizardState.deleteKey(
                   state._type,
-                  state.registration.developer_key_id,
+                  accountId,
+                  state.registration.id,
                 )
                 if (isUnsuccessful(result)) {
                   showFlashAlert({
@@ -210,7 +210,7 @@ export const DynamicRegistrationWizard = (props: DynamicRegistrationWizardProps)
           <RegistrationModalBody>
             <PrivacyConfirmationWrapper
               overlayStore={state.overlayStore}
-              toolName={state.registration.client_name}
+              toolName={state.registration.name}
             />
           </RegistrationModalBody>
           <Footer
@@ -302,10 +302,19 @@ export const DynamicRegistrationWizard = (props: DynamicRegistrationWizardProps)
                   'Reviewing',
                 )
               } else {
-                dynamicRegistrationWizardState.transitionToConfirmationState(
-                  state._type,
-                  'IconConfirmation',
-                )
+                const placements = state.registration.configuration.placements.map(p => p.placement)
+                const disabledPlacements =
+                  state.overlayStore.getState().state.overlay.disabled_placements ?? []
+                const enabledPlacements = placements.filter(p => !disabledPlacements.includes(p))
+
+                if (enabledPlacements.some(p => isLtiPlacementWithIcon(p))) {
+                  dynamicRegistrationWizardState.transitionToConfirmationState(
+                    state._type,
+                    'IconConfirmation',
+                  )
+                } else {
+                  dynamicRegistrationWizardState.transitionToReviewingState(state._type)
+                }
               }
             }}
           />
@@ -341,32 +350,42 @@ export const DynamicRegistrationWizard = (props: DynamicRegistrationWizardProps)
             currentScreen="last"
             reviewing={state.reviewing}
             onPreviousClicked={() => {
-              dynamicRegistrationWizardState.transitionToConfirmationState(
-                state._type,
-                'IconConfirmation',
-                false,
-              )
+              const placements = Object.keys(
+                state.registration.configuration.placements,
+              ) as LtiPlacement[]
+              const disabledPlacements =
+                state.overlayStore.getState().state.overlay.disabled_placements ?? []
+              const enabledPlacements = placements.filter(p => !disabledPlacements.includes(p))
+
+              if (enabledPlacements.some(p => isLtiPlacementWithIcon(p))) {
+                dynamicRegistrationWizardState.transitionToConfirmationState(
+                  state._type,
+                  'IconConfirmation',
+                  false,
+                )
+              } else {
+                dynamicRegistrationWizardState.transitionToConfirmationState(
+                  state._type,
+                  'NamingConfirmation',
+                  false,
+                )
+              }
             }}
             onNextClicked={() => {
               if (registrationId) {
                 dynamicRegistrationWizardState.updateAndClose(
                   accountId,
-                  state.registration.id,
-                  state.registration.lti_registration_id,
-                  state.overlayStore.getState().state.registration,
-                  state.overlayStore.getState().state.adminNickname ??
-                    state.registration.client_name,
+                  registrationId,
+                  state.overlayStore.getState().state.overlay,
+                  state.overlayStore.getState().state.adminNickname ?? state.registration.name,
                   props.onSuccessfulRegistration,
                 )
               } else {
                 dynamicRegistrationWizardState.enableAndClose(
                   accountId,
                   state.registration.id,
-                  state.registration.lti_registration_id,
-                  state.registration.developer_key_id,
-                  state.overlayStore.getState().state.registration,
-                  state.overlayStore.getState().state.adminNickname ??
-                    state.registration.client_name,
+                  state.overlayStore.getState().state.overlay,
+                  state.overlayStore.getState().state.adminNickname ?? state.registration.name,
                   props.onSuccessfulRegistration,
                 )
               }

@@ -62,6 +62,7 @@ class ContentTag < ActiveRecord::Base
   belongs_to :learning_outcome_content, class_name: "LearningOutcome", foreign_key: :content_id, inverse_of: false
   has_many :learning_outcome_results
   belongs_to :root_account, class_name: "Account"
+  has_one :estimated_duration, dependent: :destroy, inverse_of: :content_tag
 
   after_create :clear_stream_items_if_module_is_unpublished
 
@@ -93,17 +94,8 @@ class ContentTag < ActiveRecord::Base
   acts_as_list scope: :context_module
 
   set_policy do
-    #################### Begin legacy permission block #########################
     given do |user, session|
-      user && !root_account.feature_enabled?(:granular_permissions_manage_course_content) &&
-        context&.grants_right?(user, session, :manage_content)
-    end
-    can :delete
-    ##################### End legacy permission block ##########################
-
-    given do |user, session|
-      user && root_account.feature_enabled?(:granular_permissions_manage_course_content) &&
-        context&.grants_right?(user, session, :manage_course_content_delete)
+      user && context&.grants_right?(user, session, :manage_course_content_delete)
     end
     can :delete
   end

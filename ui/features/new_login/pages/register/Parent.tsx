@@ -99,7 +99,8 @@ const Parent = () => {
       if (errorKey) {
         setPasswordError(
           // using server error messaging here to avoid duplication
-          serverErrorsMap[`pseudonym.password.${errorKey}`] || I18n.t('An unknown error occurred.'),
+          serverErrorsMap[`pseudonym.password.${errorKey}`]?.() ||
+            I18n.t('An unknown error occurred.'),
         )
         passwordInputRef.current?.focus()
         return false
@@ -152,7 +153,7 @@ const Parent = () => {
     // email address
     if (errors.pseudonym?.unique_id?.length) {
       const errorKey = `pseudonym.unique_id.${errors.pseudonym.unique_id[0]?.type}`
-      setEmailError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setEmailError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
 
       if (!hasFocusedError) {
         emailInputRef.current?.focus()
@@ -163,7 +164,7 @@ const Parent = () => {
     // password
     if (errors.pseudonym?.password?.length) {
       const errorKey = `pseudonym.password.${errors.pseudonym.password[0]?.type}`
-      setPasswordError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setPasswordError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
 
       if (!hasFocusedError) {
         passwordInputRef.current?.focus()
@@ -174,7 +175,7 @@ const Parent = () => {
     // confirm password
     if (errors.pseudonym?.password_confirmation?.length) {
       const errorKey = `pseudonym.password_confirmation.${errors.pseudonym.password_confirmation[0]?.type}`
-      setConfirmPasswordError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setConfirmPasswordError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
 
       if (!hasFocusedError) {
         confirmPasswordInputRef.current?.focus()
@@ -185,7 +186,7 @@ const Parent = () => {
     // full name
     if (errors.user?.name?.length) {
       const errorKey = `user.name.${errors.user.name[0]?.type}`
-      setNameError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setNameError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
 
       if (!hasFocusedError) {
         nameInputRef.current?.focus()
@@ -196,7 +197,7 @@ const Parent = () => {
     // student pairing code
     if (errors.pairing_code?.code?.length) {
       const errorKey = `pairing_code.code.${errors.pairing_code.code[0]?.type}`
-      setPairingCodeError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setPairingCodeError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
       if (!hasFocusedError) {
         pairingCodeInputRef.current?.focus()
         hasFocusedError = true
@@ -206,7 +207,7 @@ const Parent = () => {
     // terms of use
     if (errors.user?.terms_of_use?.length) {
       const errorKey = `user.terms_of_use.${errors.user.terms_of_use[0]?.type}`
-      setTermsError(serverErrorsMap[errorKey] || I18n.t('An unknown error occurred.'))
+      setTermsError(serverErrorsMap[errorKey]?.() || I18n.t('An unknown error occurred.'))
 
       if (!hasFocusedError) {
         const checkbox = document.getElementById('terms-checkbox') as HTMLInputElement
@@ -318,7 +319,7 @@ const Parent = () => {
           {I18n.t('Create a Parent Account')}
         </Heading>
 
-        <Text>{I18n.t('All fields are required.')}</Text>
+        <Text>{I18n.t('* Required Fields')}</Text>
       </Flex>
 
       <form onSubmit={handleCreateParent} noValidate={true}>
@@ -329,60 +330,71 @@ const Parent = () => {
               autoComplete="email"
               autoCorrect="none"
               disabled={isUiActionPending}
+              isRequired={true}
               inputRef={inputElement => (emailInputRef.current = inputElement)}
               messages={createErrorMessage(emailError)}
               onChange={handleEmailChange}
               renderLabel={I18n.t('Email Address')}
               value={email}
+              data-testid="email-input"
             />
 
             <TextInput
               autoComplete="new-password"
               disabled={isUiActionPending}
+              isRequired={true}
               inputRef={inputElement => (passwordInputRef.current = inputElement)}
               messages={createErrorMessage(passwordError)}
               onChange={handlePasswordChange}
               renderLabel={I18n.t('Password')}
               type="password"
               value={password}
+              data-testid="password-input"
             />
 
             <TextInput
               autoComplete="new-password"
               disabled={isUiActionPending}
+              isRequired={true}
               inputRef={inputElement => (confirmPasswordInputRef.current = inputElement)}
               messages={createErrorMessage(confirmPasswordError)}
               onChange={handleConfirmPasswordChange}
               renderLabel={I18n.t('Confirm Password')}
               type="password"
               value={confirmPassword}
+              data-testid="confirm-password-input"
             />
 
             <TextInput
               autoCorrect="none"
               disabled={isUiActionPending}
+              isRequired={true}
               inputRef={inputElement => (nameInputRef.current = inputElement)}
               messages={createErrorMessage(nameError)}
               onChange={handleNameChange}
               renderLabel={I18n.t('Full Name')}
               value={name}
+              data-testid="name-input"
             />
 
             <TextInput
               autoCapitalize="none"
               autoCorrect="none"
               disabled={isUiActionPending}
+              isRequired={true}
               inputRef={inputElement => (pairingCodeInputRef.current = inputElement)}
               messages={createErrorMessage(pairingCodeError)}
               onChange={handlePairingCodeChange}
               renderLabel={I18n.t('Student Pairing Code')}
               value={pairingCode}
+              data-testid="pairing-code-input"
             />
 
             <Text>
               <Link
                 href="https://community.canvaslms.com/t5/Canvas-Resource-Documents/Pairing-Codes-FAQ/ta-p/388738"
                 target="_blank"
+                data-testid="pairing-code-link"
               >
                 {I18n.t('What is a pairing code?')}
               </Link>
@@ -399,6 +411,7 @@ const Parent = () => {
                 onChange={handleTermsChange}
                 privacyPolicyUrl={privacyPolicyUrl}
                 termsOfUseUrl={termsOfUseUrl}
+                isRequired={true}
               />
             </Flex.Item>
           )}
@@ -423,7 +436,13 @@ const Parent = () => {
               {I18n.t('Back to Login')}
             </Button>
 
-            <Button type="submit" color="primary" display="block" disabled={isUiActionPending}>
+            <Button
+              type="submit"
+              color="primary"
+              display="block"
+              disabled={isUiActionPending}
+              data-testid="submit-button"
+            >
               {I18n.t('Next')}
             </Button>
           </Flex>
