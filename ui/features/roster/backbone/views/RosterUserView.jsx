@@ -30,6 +30,8 @@ import {Avatar} from '@instructure/ui-avatar'
 import {nanoid} from 'nanoid'
 import 'jquery-kyle-menu'
 import '@canvas/jquery/jquery.disableWhileLoading'
+import UserTaggedModal from '@canvas/differentiation-tags/react/UserTaggedModal/UserTaggedModal'
+import MessageBus from '../../util/MessageBus'
 
 const I18n = createI18nScope('RosterUserView')
 
@@ -50,6 +52,8 @@ export default class RosterUserView extends Backbone.View {
       'click .admin-links [data-event]': 'handleMenuEvent',
       'focus *': 'focus',
       'blur *': 'blur',
+      'change .select-user-checkbox': 'handleCheckboxChange',
+      'click .user-tags-icon': 'handleTagIconClick'
     }
   }
 
@@ -108,6 +112,7 @@ export default class RosterUserView extends Backbone.View {
     json.canLinkStudents = json.isObserver && !ENV.course.concluded
     json.canViewLoginIdColumn = ENV.permissions.view_user_logins
     json.canViewSisIdColumn = ENV.permissions.read_sis
+    json.canManageDifferentiationTags = ENV.permissions.can_manage_differentiation_tags
 
     const candoAdminActions = ENV.permissions.can_allow_course_admin_actions
 
@@ -298,6 +303,50 @@ export default class RosterUserView extends Backbone.View {
     return this[method].call(this, e)
   }
 
+  // you can access the selected users through RosterUserView.selectedUsers
+  static selectedUsers = []
+
+  handleCheckboxChange(e) {
+    const isChecked = $(e.currentTarget).is(':checked')
+    const userId = this.model.id
+
+    if (isChecked) {
+      RosterUserView.selectedUsers.push(userId)
+    } else {
+      RosterUserView.selectedUsers = RosterUserView.selectedUsers.filter(id => id !== userId)
+    }
+
+    MessageBus.trigger('userSelectionChanged', {
+      model: this.model,
+      selected: isChecked,
+      selectedUsers: RosterUserView.selectedUsers,
+    })
+  }
+
+  handleTagIconClick(e) {
+    this.renderUserTagModal(true, this.model.id, this.model.get('name'))
+  }
+
+  renderUserTagModal(isOpen, userId, userName) {
+    const el = document.getElementById('userTagsModalContainer')
+    const returnFocusTo = document.getElementById(`tag-icon-id-${userId}`)
+    const onModalClose = (userId, userName) => {
+      this.renderUserTagModal(false, userId, userName)
+      returnFocusTo?.focus()
+    }
+    if(!this.userTagModalContainer)
+      this.userTagModalContainer = createRoot(el)
+    this.userTagModalContainer.render(
+      <UserTaggedModal 
+        isOpen={isOpen}
+        courseId={ENV.course.id}
+        userId={userId}
+        userName={userName}
+        onClose={onModalClose}
+      />
+    )
+  }
+
   focus() {
     return this.$el.addClass('al-hover-container-active table-hover-row')
   }
@@ -323,11 +372,16 @@ export default class RosterUserView extends Backbone.View {
       )
       this._reactRoot = root
     }
+    this.userTagModalContainer = null
   }
 
   remove() {
     if (this._reactRoot) {
       this._reactRoot.unmount()
+    }
+    if(this.userTagModalContainer) {
+      this.userTagModalContainer.unmount()
+      this.userTagModalContainer = null
     }
     return super.remove(...arguments)
   }

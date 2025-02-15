@@ -28,8 +28,6 @@ import * as fakeSource from '../src/rcs/fake'
 
 import './test-plugin/plugin'
 
-let root = null
-
 function getSetting(settingKey, defaultValue) {
   let val = localStorage.getItem(settingKey) || defaultValue
   if (typeof defaultValue === 'boolean') {
@@ -280,10 +278,5 @@ function refreshCanvasToken(canvas_origin, initialToken) {
   }
 }
 
-const container = document.getElementById('demo')
-if (container) {
-  if (!root) {
-    root = createRoot(container)
-  }
-  root.render(<Demo />)
-}
+const root = createRoot(document.getElementById('demo'))
+root.render(<Demo />)
