@@ -600,13 +600,6 @@ describe "discussions" do
           expect(f("input[value='allow-liking']").selected?).to be_truthy
           expect(f("input[value='only-graders-can-like']").selected?).to be_truthy
           expect(f("input[value='add-to-student-to-do']").selected?).to be_truthy
-
-          # Just checking for a value. Formatting and TZ differences between front-end and back-end
-          # makes an exact comparison too fragile.
-          unless Account.site_admin.feature_enabled?(:selective_release_ui_api)
-            expect(ff("input[placeholder='Select Date']")[0].attribute("value")).to be_truthy
-            expect(ff("input[placeholder='Select Date']")[1].attribute("value")).to be_truthy
-          end
         end
 
         it "does not display the grading and groups not supported in anonymous discussions message in the edit page" do
@@ -628,13 +621,6 @@ describe "discussions" do
           expect(f("input[value='enable-podcast-feed']").selected?).to be_falsey
           expect(f("input[value='allow-liking']").selected?).to be_falsey
           expect(f("input[value='add-to-student-to-do']").selected?).to be_falsey
-
-          # Just checking for a value. Formatting and TZ differences between front-end and back-end
-          # makes an exact comparison too fragile.
-          unless Account.site_admin.feature_enabled?(:selective_release_ui_api)
-            expect(ff("input[placeholder='Select Date']")[0].attribute("value")).to eq("")
-            expect(ff("input[placeholder='Select Date']")[1].attribute("value")).to eq("")
-          end
         end
 
         context "usage rights" do
@@ -675,12 +661,6 @@ describe "discussions" do
           _, fullpath, _data = get_file("testfile5.zip")
           f("[data-testid='attachment-input']").send_keys(fullpath)
 
-          unless Account.site_admin.feature_enabled?(:selective_release_ui_api)
-            f("button[title='Remove All Sections']").click
-            f("input[data-testid='section-select']").click
-            fj("li:contains('value for name')").click
-          end
-
           # we can change anonymity on edit, if there is no reply
           expect(ffj("fieldset:contains('Anonymous Discussion') input[type=radio]").count).to eq 3
 
@@ -700,9 +680,6 @@ describe "discussions" do
           expect(@topic_all_options.title).to eq "new title"
           expect(@topic_all_options.message).to include "new message"
           expect(@topic_all_options.attachment_id).to eq Attachment.last.id
-          unless Account.site_admin.feature_enabled?(:selective_release_ui_api)
-            expect(@topic_all_options.is_section_specific).to be_truthy
-          end
           expect(@topic_all_options.require_initial_post).to be_falsey
           expect(@topic_all_options.podcast_enabled).to be_falsey
           expect(@topic_all_options.allow_rating).to be_falsey
@@ -925,6 +902,14 @@ describe "discussions" do
 
             expect(selected_assignee_options.count).to be(1)
           end
+
+          it "does not navigate to existsing discussion edit page" do
+            course.account.enable_feature!(:horizon_course_setting)
+            course.horizon_course = true
+            course.save!
+            get "/courses/#{course.id}/discussion_topics/#{@topic_all_options.id}/edit"
+            expect(element_exists?(Discussion.save_selector)).to be_falsey
+          end
         end
       end
 
@@ -1056,19 +1041,7 @@ describe "discussions" do
           # makes an exact comparison too fragile.
           expect(ff("input[placeholder='Select Date']")[0].attribute("value")).not_to be_empty
 
-          if Account.site_admin.feature_enabled?(:selective_release_ui_api)
-            expect(assign_to_in_tray("Remove #{course_section.name}")[0]).to be_displayed
-          else
-            expect(f("span[data-testid='assign-to-select-span']").present?).to be_truthy
-            expect(fj("span:contains('#{course_section.name}')").present?).to be_truthy
-
-            # Verify that the only_visible_to_overrides field is being respected
-            expect(f("body")).not_to contain_jqcss("span:contains('Everyone')")
-
-            # Just checking for a value. Formatting and TZ differences between front-end and back-end
-            # makes an exact comparison too fragile.
-            expect(f("input[placeholder='Select Assignment Due Date']").attribute("value")).not_to be_empty
-          end
+          expect(assign_to_in_tray("Remove #{course_section.name}")[0]).to be_displayed
         end
 
         it "allows settings a graded discussion to an ungraded discussion" do
@@ -1584,6 +1557,58 @@ describe "discussions" do
             select_module_item_assignee(0, @course_section_2.name)
 
             expect(selected_assignee_options.count).to be(1)
+          end
+
+          context "differentiaiton tags" do
+            before do
+              @course.account.enable_feature! :assign_to_differentiation_tags
+              @course.account.enable_feature! :differentiation_tags
+              @course.account.tap do |a|
+                a.settings[:allow_assign_to_differentiation_tags] = true
+                a.save!
+              end
+
+              @differentiation_tag_category = @course.group_categories.create!(name: "Differentiation Tag Category", non_collaborative: true)
+              @diff_tag1 = @course.groups.create!(name: "Differentiation Tag 1", group_category: @differentiation_tag_category, non_collaborative: true)
+              @diff_tag2 = @course.groups.create!(name: "Differentiation Tag 2", group_category: @differentiation_tag_category, non_collaborative: true)
+            end
+
+            it "assigns a differentiation tag and saves discussion" do
+              graded_discussion = create_graded_discussion(course)
+
+              due_date = "Sat, 06 Apr 2024 00:00:00.000000000 UTC +00:00"
+              unlock_at = "Fri, 05 Apr 2024 00:00:00.000000000 UTC +00:00"
+              lock_at = "Sun, 07 Apr 2024 00:00:00.000000000 UTC +00:00"
+              graded_discussion.assignment.update!(due_at: due_date, unlock_at:, lock_at:)
+              course.reload
+              # Open page and assignTo tray
+              get "/courses/#{course.id}/discussion_topics/#{graded_discussion.id}/edit"
+
+              click_add_assign_to_card
+              select_module_item_assignee(1, @diff_tag1.name)
+
+              Discussion.save_button.click
+              wait_for_ajaximations
+
+              assignment = Assignment.last
+
+              expect(assignment.assignment_overrides.active.count).to eq 1
+            end
+
+            context "existing differentiation tag overrides" do
+              before do
+                @discussion = create_graded_discussion(@course)
+                @discussion.assignment.assignment_overrides.create!(set_type: "Group", set_id: @diff_tag1.id, title: @diff_tag1.name)
+                @discussion.assignment.assignment_overrides.create!(set_type: "Group", set_id: @diff_tag2.id, title: @diff_tag2.name)
+              end
+
+              it "renders all the override assignees" do
+                get "/courses/#{@course.id}/discussion_topics/#{@discussion.id}/edit"
+
+                # 3 differentiation tags
+                expect(selected_assignee_options.count).to eq 3
+              end
+            end
           end
 
           context "checkpoints" do
@@ -2138,6 +2163,47 @@ describe "discussions" do
 
             expect(ui_ranges[2].text).to include @set3a_assmt.title
             expect(ui_ranges[2].text).to include @set3b_assmt.title
+          end
+
+          context "with course paces" do
+            before do
+              Account.site_admin.enable_feature!(:react_discussions_post)
+            end
+
+            it "sets an assignment override for mastery paths when mastery path toggle is turned on" do
+              course_with_teacher_logged_in
+              @course.root_account.enable_feature!(:course_pace_pacing_with_mastery_paths)
+              @course.conditional_release = true
+              @course.enable_course_paces = true
+              @course.save!
+
+              assignment = create_assignment(@course, "Mastery Path Main Assignment", 10)
+              discussion = @course.discussion_topics.create!(assignment: assignment, title: "graded discussion")
+
+              get "/courses/#{@course.id}/discussion_topics/#{discussion.id}/edit"
+              Discussion.mastery_path_toggle.click
+              expect_new_page_load { Discussion.save_discussion }
+
+              expect(assignment.assignment_overrides.active.find_by(set_id: AssignmentOverride::NOOP_MASTERY_PATHS, set_type: AssignmentOverride::SET_TYPE_NOOP)).to be_present
+            end
+
+            it "removes assignment override for mastery paths when mastery path toggle is turned off" do
+              course_with_teacher_logged_in
+              @course.root_account.enable_feature!(:course_pace_pacing_with_mastery_paths)
+              @course.conditional_release = true
+              @course.enable_course_paces = true
+              @course.save!
+
+              assignment = create_assignment(@course, "Mastery Path Main Assignment", 10)
+              discussion = @course.discussion_topics.create!(assignment: assignment, title: "graded discussion")
+              assignment.assignment_overrides.create(set_id: AssignmentOverride::NOOP_MASTERY_PATHS, set_type: AssignmentOverride::SET_TYPE_NOOP)
+
+              get "/courses/#{@course.id}/discussion_topics/#{discussion.id}/edit"
+              Discussion.mastery_path_toggle.click
+              expect_new_page_load { Discussion.save_discussion }
+
+              expect(assignment.assignment_overrides.active.find_by(set_id: AssignmentOverride::NOOP_MASTERY_PATHS, set_type: AssignmentOverride::SET_TYPE_NOOP)).not_to be_present
+            end
           end
         end
       end

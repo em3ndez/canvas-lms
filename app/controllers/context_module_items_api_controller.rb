@@ -288,6 +288,7 @@ class ContextModuleItemsApiController < ApplicationController
         opts[:conditional_release_rules] = ConditionalRelease::Service.rules_for(@context, @student, session)
       end
       opts[:can_view_published] = @context.grants_right?((@student || @current_user), session, :read_as_admin)
+      opts[:can_have_estimated_time] = @context.horizon_course?
       render json: items.map { |item| module_item_json(item, @student || @current_user, session, mod, prog, includes, opts) }
     end
   end
@@ -315,6 +316,7 @@ class ContextModuleItemsApiController < ApplicationController
       get_module_item
       prog = @student ? @module.evaluate_for(@student) : nil
       opts = { can_view_published: @context.grants_right?((@student || @current_user), session, :read_as_admin) }
+      opts[:can_have_estimated_time] = @context.horizon_course?
       render json: module_item_json(@item, @student || @current_user, session, @module, prog, Array(params[:include]), opts)
     end
   end
@@ -565,7 +567,7 @@ class ContextModuleItemsApiController < ApplicationController
   #
   def select_mastery_path
     return unless authorized_action(@context, @current_user, :read)
-    return unless @student == @current_user || authorized_action(@context, @current_user, [:manage_assignments, :manage_assignments_edit])
+    return unless @student == @current_user || authorized_action(@context, @current_user, :manage_assignments_edit)
     return render json: { message: "mastery paths not enabled" }, status: :bad_request unless cyoe_enabled?(@context)
     return render json: { message: "assignment_set_id required" }, status: :bad_request unless params[:assignment_set_id]
 

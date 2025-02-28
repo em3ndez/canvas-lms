@@ -60,31 +60,34 @@ const Landing = () => {
             <Flex direction={isTabletOrLarger ? 'row' : 'column'} gap="small">
               <Flex.Item shouldGrow={true}>
                 <Card
-                  icon={iconTeacher}
-                  text={I18n.t('Teacher')}
+                  compact={!isTabletOrLarger}
                   href={ROUTES.REGISTER_TEACHER}
+                  icon={iconTeacher}
+                  label={I18n.t('Create Teacher Account')}
                   onClick={handleNavigate(ROUTES.REGISTER_TEACHER)}
-                  compact={!isTabletOrLarger}
+                  text={I18n.t('Teacher')}
                 />
               </Flex.Item>
 
               <Flex.Item shouldGrow={true}>
                 <Card
-                  icon={iconStudent}
-                  text={I18n.t('Student')}
+                  compact={!isTabletOrLarger}
                   href={ROUTES.REGISTER_STUDENT}
+                  icon={iconStudent}
+                  label={I18n.t('Create Student Account')}
                   onClick={handleNavigate(ROUTES.REGISTER_STUDENT)}
-                  compact={!isTabletOrLarger}
+                  text={I18n.t('Student')}
                 />
               </Flex.Item>
 
               <Flex.Item shouldGrow={true}>
                 <Card
-                  icon={iconParent}
-                  text={I18n.t('Parent')}
-                  href={ROUTES.REGISTER_PARENT}
-                  onClick={handleNavigate(ROUTES.REGISTER_PARENT)}
                   compact={!isTabletOrLarger}
+                  href={ROUTES.REGISTER_PARENT}
+                  icon={iconParent}
+                  label={I18n.t('Create Parent Account')}
+                  onClick={handleNavigate(ROUTES.REGISTER_PARENT)}
+                  text={I18n.t('Parent')}
                 />
               </Flex.Item>
             </Flex>
@@ -98,7 +101,7 @@ const Landing = () => {
     <Flex direction="column" gap="large">
       <Flex direction="column" gap="small">
         <Heading as="h1" level="h2">
-          {I18n.t('Create your account')}
+          {I18n.t('Create Your Account')}
         </Heading>
 
         <Flex.Item overflowX="visible" overflowY="visible">

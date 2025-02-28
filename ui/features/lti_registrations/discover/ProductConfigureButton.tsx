@@ -17,7 +17,7 @@
  */
 
 import {useScope as createI18nScope} from '@canvas/i18n'
-import {type Lti} from '@canvas/lti-apps/models/Product'
+import type {Lti} from '@canvas/lti-apps/models/Product'
 import {
   pickPreferredIntegration,
   type PreferredLtiIntegration,
@@ -37,10 +37,12 @@ import {
   openJsonUrlRegistrationWizard,
   type JsonFetchStatus,
 } from '../manage/registration_wizard/RegistrationWizardModalState'
+import type {LtiRegistrationWithConfiguration} from '../manage/model/LtiRegistration'
+import {showFlashSuccess} from '@canvas/alerts/react/FlashAlert'
 
 export type ConfigureButtonProps = {
   buttonWidth: 'block' | 'inline-block'
-  ltiConfiguration: Lti
+  ltiConfiguration: Lti[]
   accountId: AccountId
 }
 
@@ -53,13 +55,18 @@ export const ProductConfigureButton = ({
 }: ConfigureButtonProps) => {
   const navigate = useNavigate()
 
-  const redirectToManagePage = React.useCallback(() => {
+  const onSuccessfulInstall = React.useCallback(() => {
     navigate('/manage')
   }, [navigate])
 
-  const integration = ltiConfiguration.lti_13
-    ? pickPreferredIntegration(ltiConfiguration.lti_13)
-    : undefined
+  const onSuccessfulInstallForInheritedKey = React.useCallback(
+    (config: LtiRegistrationWithConfiguration) => {
+      navigate(`/manage?q=${config.admin_nickname || config.name}`)
+    },
+    [navigate],
+  )
+
+  const integration = ltiConfiguration ? pickPreferredIntegration(ltiConfiguration) : undefined
 
   const [jsonFetchStatus, setJsonFetchStatus] = React.useState<JsonFetchStatus>({_tag: 'initial'})
 
@@ -87,7 +94,7 @@ export const ProductConfigureButton = ({
         })
       })
     }
-  }, [integration, setJsonFetchStatus])
+  }, [integration, setJsonFetchStatus, accountId])
 
   return (
     <Button
@@ -100,13 +107,13 @@ export const ProductConfigureButton = ({
             openDynamicRegistrationWizard(
               integration.url,
               ZUnifiedToolId.parse(integration.unified_tool_id),
-              redirectToManagePage,
+              onSuccessfulInstall,
             )
             break
           case 'lti_13_global_inherited_key':
             openInheritedKeyWizard(
               ZDeveloperKeyId.parse(integration.global_inherited_key),
-              redirectToManagePage,
+              onSuccessfulInstallForInheritedKey,
             )
             break
           case 'lti_13_url':
@@ -115,7 +122,7 @@ export const ProductConfigureButton = ({
                 integration.url,
                 jsonFetchStatus.result.data,
                 ZUnifiedToolId.parse(integration.unified_tool_id),
-                redirectToManagePage,
+                onSuccessfulInstall,
               )
             }
             break
@@ -125,7 +132,7 @@ export const ProductConfigureButton = ({
                 integration.configuration,
                 jsonFetchStatus.result.data,
                 ZUnifiedToolId.parse(integration.unified_tool_id),
-                redirectToManagePage,
+                onSuccessfulInstall,
               )
             }
             break
@@ -149,7 +156,7 @@ const buttonIsEnabled = (
     (jsonFetchStatus._tag === 'loaded' && isSuccessful(jsonFetchStatus.result)) ||
     integration?.integration_type === 'lti_13_global_inherited_key'
   ) {
-    return window.ENV.FEATURES.lti_registrations_next
+    return window.ENV.FEATURES.lti_registrations_page
   } else {
     return false
   }

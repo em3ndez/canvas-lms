@@ -117,12 +117,8 @@ module Importers
             end
           end
 
-          if (!migration.for_course_copy? || Account.site_admin.feature_enabled?(:media_links_use_attachment_id)) &&
-             (migration.canvas_import? || migration.for_master_course_import?)
-            migration.update_import_progress(30)
-            Importers::MediaTrackImporter.process_migration(data[:media_tracks], migration)
-          end
-
+          migration.update_import_progress(30)
+          Importers::MediaTrackImporter.process_migration(data[:media_tracks], migration)
           migration.update_import_progress(35)
           unless migration.quizzes_next_banks_migration?
             question_data = Importers::AssessmentQuestionImporter.process_migration(data, migration)
@@ -245,6 +241,12 @@ module Importers
 
       migration.trigger_live_events!
       Auditors::Course.record_copied(migration.source_course, course, migration.user, source: migration.initiated_source)
+      if course.root_account.feature_enabled?(:lti_context_copy_notice)
+        copied_at = (migration.started_at || Time.zone.now).iso8601
+        notice = Lti::Pns::LtiContextCopyNoticeBuilder.new(course:, copied_at:, source_course: migration.source_course)
+        Lti::PlatformNotificationService.notify_tools_in_course(course, notice)
+      end
+
       InstStatsd::Statsd.increment("content_migrations.import_success")
       duration = Time.zone.now - migration.created_at
       InstStatsd::Statsd.timing("content_migrations.import_duration", duration, tags: { migration_type: migration.migration_type })

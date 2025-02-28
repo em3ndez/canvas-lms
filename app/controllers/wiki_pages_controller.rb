@@ -23,6 +23,10 @@ class WikiPagesController < ApplicationController
   include SubmittableHelper
 
   before_action :require_context
+
+  include HorizonMode
+  before_action :redirect_student_to_horizon, only: [:index, :show]
+
   before_action :get_wiki_page, except: [:front_page]
   before_action :set_front_page, only: [:front_page]
   before_action :set_pandapub_read_token
@@ -88,6 +92,7 @@ class WikiPagesController < ApplicationController
 
   def show
     GuardRail.activate(:secondary) do
+      conditional_release_js_env
       if @page.new_record?
         wiki_page = @context.wiki_pages.deleted_last.where(url: @page.url).first
         if @page.grants_any_right?(@current_user, session, :update, :update_content)
@@ -169,13 +174,22 @@ class WikiPagesController < ApplicationController
 
   def wiki_pages_js_env(context)
     set_k5_mode # we need this to run now, even though we haven't hit the render hook yet
+
+    assign_to_tags = @context.account.feature_enabled?(:assign_to_differentiation_tags) && @context.account.allow_assign_to_differentiation_tags?
+
     @wiki_pages_env ||= {
       wiki_page_menu_tools: external_tools_display_hashes(:wiki_page_menu),
       wiki_index_menu_tools: external_tools_display_hashes(:wiki_index_menu),
       DISPLAY_SHOW_ALL_LINK: tab_enabled?(context.class::TAB_PAGES, no_render: true) && !@k5_details_view,
       CAN_SET_TODO_DATE: context.grants_any_right?(@current_user, session, :manage_content, :manage_course_content_edit),
-      text_editor_preference: @current_user&.reload&.get_preference(:text_editor_preference)
+      ALLOW_ASSIGN_TO_DIFFERENTIATION_TAGS: assign_to_tags,
+      CAN_MANAGE_DIFFERENTIATION_TAGS: @context.grants_any_right?(@current_user, session, *RoleOverride::GRANULAR_MANAGE_TAGS_PERMISSIONS)
     }
+
+    if @context.account.feature_enabled?(:block_editor)
+      @wiki_pages_env[:text_editor_preference] = @current_user&.reload&.get_preference(:text_editor_preference)
+    end
+
     if context.is_a?(Course)
       @wiki_pages_env[:VALID_DATE_RANGE] = CourseDateRange.new(context)
       @wiki_pages_env[:SECTION_LIST] = context.course_sections.active.map do |section|

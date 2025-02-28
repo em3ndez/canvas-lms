@@ -722,6 +722,8 @@
 - verb: PUT
   path: '/api/v1/courses/:course_id/blueprint_templates/:template_id/update_associations'
 - verb: GET
+  path: '/api/v1/courses/:course_id/bulk_student_enrollments/student_bulk_pace_edit_view'
+- verb: GET
   path: '/api/v1/courses/:course_id/bulk_user_progress'
 - verb: GET
   path: '/api/v1/courses/:course_id/calendar_events/timetable'
@@ -1005,6 +1007,8 @@
   path: '/api/v1/courses/:course_id/group_categories'
 - verb: POST
   path: '/api/v1/courses/:course_id/group_categories'
+- verb: POST
+  path: '/api/v1/courses/:course_id/group_categories/bulk_manage_differentiation_tag'
 - verb: GET
   path: '/api/v1/courses/:course_id/groups'
 - verb: GET
@@ -1277,6 +1281,12 @@
   path: '/api/v1/courses/:course_id/quizzes/assignment_overrides'
 - verb: GET
   path: '/api/v1/courses/:course_id/recent_students'
+- verb: GET
+  path: '/api/v1/courses/:course_id/reports/:report_type'
+- verb: POST
+  path: '/api/v1/courses/:course_id/reports/:report_type'
+- verb: GET
+  path: '/api/v1/courses/:course_id/reports/:report_type/:id'
 - verb: POST
   path: '/api/v1/courses/:course_id/reset_content'
 - verb: GET

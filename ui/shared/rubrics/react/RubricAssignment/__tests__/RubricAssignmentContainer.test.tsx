@@ -53,10 +53,19 @@ describe('RubricAssignmentContainer Tests', () => {
       ['fetchGradingRubricsForContext', '1', 'course_2'],
       RUBRICS_FOR_CONTEXT,
     )
+    const rubricSelfAssessmentSettings = {
+      canUpdateRubricSelfAssessment: true,
+      rubricSelfAssessmentEnabled: true,
+    }
+    queryClient.setQueryData(
+      ['assignment-self-assessment-settings', '1', RUBRIC.id],
+      rubricSelfAssessmentSettings,
+    )
   })
 
   afterEach(() => {
     jest.clearAllMocks()
+    queryClient.clear()
   })
 
   const renderComponent = (props: Partial<RubricAssignmentContainerProps> = {}) => {
@@ -67,8 +76,6 @@ describe('RubricAssignmentContainer Tests', () => {
         courseId="1"
         contextAssetString="course_1"
         canManageRubrics={true}
-        canUpdateSelfAssessment={true}
-        rubricSelfAssessmentEnabled={false}
         rubricSelfAssessmentFFEnabled={true}
         {...props}
       />,
@@ -157,12 +164,26 @@ describe('RubricAssignmentContainer Tests', () => {
       expect(getByTestId('rubric-form-title')).toHaveValue('Rubric 1')
     })
 
-    it('should remove the rubric from the assignment when the remove button is clicked', async () => {
+    it('should render the delete confirm modal when the remove button is clicked', async () => {
+      const {getByTestId, queryByTestId} = renderComponent({
+        assignmentRubric: RUBRIC,
+        assignmentRubricAssociation: RUBRIC_ASSOCIATION,
+      })
+      expect(queryByTestId('delete-confirm-btn')).not.toBeInTheDocument()
+
+      fireEvent.click(getByTestId('remove-assignment-rubric-button'))
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(getByTestId('delete-confirm-btn')).toBeInTheDocument()
+    })
+
+    it('should remove the rubric from the assignment when the delete confirm modal is confirmed', async () => {
       const {getByTestId} = renderComponent({
         assignmentRubric: RUBRIC,
         assignmentRubricAssociation: RUBRIC_ASSOCIATION,
       })
       fireEvent.click(getByTestId('remove-assignment-rubric-button'))
+      await new Promise(resolve => setTimeout(resolve, 0))
+      fireEvent.click(getByTestId('delete-confirm-btn'))
       await new Promise(resolve => setTimeout(resolve, 0))
       expect(getByTestId('create-assignment-rubric-button')).toBeInTheDocument()
       expect(getByTestId('find-assignment-rubric-button')).toBeInTheDocument()
@@ -225,25 +246,35 @@ describe('RubricAssignmentContainer Tests', () => {
       })
 
       it('self assessment settings should be enabled when rubricSelfAssessmentEnabled is true', () => {
+        queryClient.setQueryData(['assignment-self-assessment-settings', '1', RUBRIC.id], {
+          canUpdateRubricSelfAssessment: true,
+          rubricSelfAssessmentEnabled: false,
+        })
         const {getByTestId} = getAssociatedComponent()
         expect(getByTestId('rubric-self-assessment-checkbox')).toBeEnabled()
         expect(getByTestId('rubric-self-assessment-checkbox')).not.toBeChecked()
       })
 
-      it('self assessment settings should be disabled when rubricSelfAssessmentEnabled is false', () => {
+      it('self assessment settings should be disabled when canUpdateRubricSelfAssessment is false', () => {
+        queryClient.setQueryData(['assignment-self-assessment-settings', '1', RUBRIC.id], {
+          canUpdateRubricSelfAssessment: false,
+          rubricSelfAssessmentEnabled: false,
+        })
         const {getByTestId} = renderComponent({
           assignmentRubric: RUBRIC,
           assignmentRubricAssociation: RUBRIC_ASSOCIATION,
-          canUpdateSelfAssessment: false,
         })
         expect(getByTestId('rubric-self-assessment-checkbox')).not.toBeEnabled()
       })
 
       it('self assessment should be checked when rubricSelfAssessmentEnabled is true', () => {
+        queryClient.setQueryData(['assignment-self-assessment-settings', '1', RUBRIC.id], {
+          canUpdateRubricSelfAssessment: true,
+          rubricSelfAssessmentEnabled: true,
+        })
         const {getByTestId} = renderComponent({
           assignmentRubric: RUBRIC,
           assignmentRubricAssociation: RUBRIC_ASSOCIATION,
-          rubricSelfAssessmentEnabled: true,
         })
         expect(getByTestId('rubric-self-assessment-checkbox')).toBeChecked()
       })

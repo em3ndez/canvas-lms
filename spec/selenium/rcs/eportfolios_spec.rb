@@ -30,13 +30,15 @@ describe "eportfolios" do
   end
 
   it "validates creation and visibility of eportfolio" do
-    skip "FOO-3809 (6/20/2024)"
     get "/dashboard/eportfolios"
-    f(".add_eportfolio_link").click
-    wait_for_animations
+    f("#add_eportfolio_button").click
+
+    # fill out form
     replace_content f("#eportfolio_name"), "student content"
-    set_value(f("#eportfolio_public"), 1)
+    f('label[for="eportfolio_public"]').click
     expect_new_page_load { f("#eportfolio_submit").click }
+
+    # validate eportfolio
     eportfolio = Eportfolio.find_by_name("student content")
     expect(eportfolio).to be_valid
     expect(eportfolio.public).to be_truthy
@@ -187,18 +189,25 @@ describe "eportfolios" do
       expect(f("form.FindFlickrImageView")).to be_displayed
     end
 
-    it "does not have new section option when adding submission" do
-      @assignment = @course.assignments.create!(
-        title: "hardest assignment ever",
-        submission_types: "online_url,online_upload"
-      )
-      @submission = @assignment.submit_homework(@student)
-      @submission.submission_type = "online_url"
-      @submission.save!
-      get "/eportfolios/#{@eportfolio.id}"
-      f(".submission").click
-      expect(f("#add_submission_form")).to be_displayed
-      expect(ff("#category_select option").map(&:text)).not_to include("New Section")
+    context "with submissions" do
+      before do
+        @assignment = @course.assignments.create!(
+          title: "hardest assignment ever",
+          submission_types: "online_url,online_upload"
+        )
+        @submission = @assignment.submit_homework(@student)
+        @submission.submission_type = "online_url"
+        @submission.save!
+        get "/eportfolios/#{@eportfolio.id}"
+      end
+
+      it "create a page with a submission" do
+        f("[data-testid='submission-modal-#{@submission.id}']").click
+        expect(f("[data-testid='create-page-modal']")).to be_displayed
+        f("[data-testid='create-page-button']").click
+        expect(f("#content h2")).to include_text @assignment.name
+        expect(f("#content form")).to include_text "This is my hardest assignment ever submission for Unnamed Course"
+      end
     end
 
     it "deletes the ePortfolio", priority: "2" do
@@ -210,7 +219,7 @@ describe "eportfolios" do
       submit_form("#delete_eportfolio_form")
       f("#wrapper .eportfolios").click
       expect(f("#content")).not_to contain_css("#portfolio_#{@eportfolio.id}")
-      expect(f(".add_eportfolio_link")).to be_displayed
+      expect(f("#add_eportfolio_button")).to be_displayed
       expect(Eportfolio.first.workflow_state).to eq "deleted"
     end
 
@@ -264,7 +273,7 @@ describe "eportfolios file upload" do
     fj(".file_upload:visible").send_keys(fullpath)
     wait_for_ajaximations
     f(".upload_file_button").click
-    submit_form(".form_content")
+    f("[data-testid='save-page']").click
   end
 
   def verify_file_upload

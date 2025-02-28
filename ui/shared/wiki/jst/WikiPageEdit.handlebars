@@ -63,28 +63,24 @@
             </div>
           {{/if}}
         {{/if}}
-        {{#if ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED}}
-          {{#unless ENV.FEATURES.selective_release_ui_api}}
-            <div class="controls-section">
-              <label class="checkbox" for="conditional_content">
-                {{checkbox "assignment.set_assignment"
-                  id="conditional_content"
-                  class="element_toggler"
-                  checked=set_assignment}}
-                {{#t}}Allow in mastery paths{{/t}}
-              </label>
-            </div>
-          {{/unless}}
-        {{/if}}
       </div>
     </div>
     {{#if show_assign_to}}
     <div class="responsive-control-group options">
       <label class="control-label"><strong>{{#t "assign_to_label"}}Assign Access{{/t}}</strong></label>
       <div class="controls">
-        <div id="assign-to-mount-point-edit-page" />
+        <div id="assign-to-mount-point-edit-page"></div>
       </div>
     </div>
+
+      {{#if course_pace_with_mastery_paths}}
+      <div class="responsive-control-group options">
+        <label class="control-label"><strong>{{#t}}Mastery Paths{{/t}}</strong></label>
+        <div class="controls">
+          <div id="mastery-paths-toggle-edit-page"></div>
+        </div>
+      </div>
+      {{/if}}
     {{/if}}
   {{/if}}
 </div>
@@ -98,7 +94,9 @@
     <div class="page-edit__action_buttons">
       <button class="btn cancel">{{#t "buttons.cancel"}}Cancel{{/t}}</button>
       {{#if CAN.PUBLISH_NOW}}
-        <button class="btn btn-default save_and_publish">{{#t "buttons.save_and_publish"}}Save & Publish{{/t}}</button>
+        {{#unless ENV.horizon_course}}
+          <button class="btn btn-default save_and_publish">{{#t "buttons.save_and_publish"}}Save & Publish{{/t}}</button>
+        {{/unless}}
       {{/if}}
       <button class="btn btn-primary submit">{{#t "buttons.save"}}Save{{/t}}</button>
     </div>

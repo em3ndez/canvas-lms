@@ -25,6 +25,7 @@ import {Text} from '@instructure/ui-text'
 import {View} from '@instructure/ui-view'
 import {useScope as createI18nScope} from '@canvas/i18n'
 import {paceContextsActions} from '../actions/pace_contexts'
+import {coursePaceActions} from '../actions/course_paces'
 import {actions as uiActions} from '../actions/ui'
 import type {
   APIPaceContextTypes,
@@ -37,11 +38,14 @@ import type {
   StoreState,
 } from '../types'
 import ConfusedPanda from '@canvas/images/ConfusedPanda.svg'
+import type {Course} from '../shared/types'
 import PaceContextsTable from './pace_contexts_table'
 import {getResponsiveSize} from '../reducers/ui'
 import {getIsDraftPace} from '../reducers/course_paces'
 import Search from './search'
 import {API_CONTEXT_TYPE_MAP} from '../utils/utils'
+import { show as showCourseReport, getLast as getLastCourseReport, create as createCourseReport } from '../api/course_reports_api'
+import BulkEditStudentPaces from './bulk_edit_students'
 
 const I18n = createI18nScope('course_paces_app')
 
@@ -67,6 +71,7 @@ interface PaceContextsContentProps {
   contextsPublishing: PaceContextProgress[]
   syncPublishingPaces: typeof paceContextsActions.syncPublishingPaces
   isDraftPace: boolean
+  course: Course
 }
 
 export const PaceContent = ({
@@ -89,6 +94,7 @@ export const PaceContent = ({
   contextsPublishing,
   syncPublishingPaces,
   isDraftPace,
+  course,
 }: PaceContextsContentProps) => {
   const selectedTab = `tab-${selectedContextType}`
   const currentTypeRef = useRef<string | null>(null)
@@ -97,9 +103,9 @@ export const PaceContent = ({
     if (paceContexts.length > 0) {
       if (currentTypeRef.current !== selectedContextType) {
         // force syncing when switching tabs
-        syncPublishingPaces(true)
+        syncPublishingPaces(coursePaceActions.loadLatestPaceByContext, true)
       } else {
-        syncPublishingPaces()
+        syncPublishingPaces(coursePaceActions.loadLatestPaceByContext)
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -126,8 +132,10 @@ export const PaceContent = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedContextType, currentPage, currentSortBy, currentOrderType])
 
-  const handleContextSelect = (paceContext: PaceContext) => {
+  const handleContextSelect = (paceContext: PaceContext, bulkEdit: boolean = false) => {
     setSelectedContext(paceContext)
+
+    if(!bulkEdit)
     setSelectedModalContext(API_CONTEXT_TYPE_MAP[selectedContextType], paceContext.item_id)
   }
 
@@ -196,6 +204,10 @@ export const PaceContent = ({
             isLoading={isLoading}
             responsiveSize={responsiveSize}
             contextsPublishing={contextsPublishing}
+            course={course}
+            createCourseReport={createCourseReport}
+            getLastCourseReport={getLastCourseReport}
+            showCourseReport={showCourseReport}
           />
         </TabPanel>
         <TabPanel
@@ -205,11 +217,15 @@ export const PaceContent = ({
           isSelected={selectedTab === 'tab-student_enrollment'}
           padding="none"
         >
+          {
+            window.ENV.FEATURES.course_pace_allow_bulk_pace_assign &&
+            <BulkEditStudentPaces handleContextSelect={handleContextSelect} />
+          }
           <View
             as="div"
             padding="small"
             background="secondary"
-            margin="large none none none"
+            margin="small none none none"
             borderWidth="small"
           >
             <Search contextType="student_enrollment" />
@@ -227,6 +243,10 @@ export const PaceContent = ({
             isLoading={isLoading}
             responsiveSize={responsiveSize}
             contextsPublishing={contextsPublishing}
+            course={course}
+            createCourseReport={createCourseReport}
+            getLastCourseReport={getLastCourseReport}
+            showCourseReport={showCourseReport}
           />
         </TabPanel>
       </Tabs>
@@ -246,6 +266,7 @@ const mapStateToProps = (state: StoreState) => ({
   contextsPublishing: state.paceContexts.contextsPublishing,
   responsiveSize: getResponsiveSize(state),
   isDraftPace: getIsDraftPace(state),
+  course: state.course,
 })
 
 export default connect(mapStateToProps, {

@@ -53,6 +53,7 @@ class Account < ActiveRecord::Base
   has_many :all_differentiation_tags, -> { non_collaborative }, class_name: "Group", foreign_key: "root_account_id", inverse_of: :root_account
   has_many :all_differentiation_tag_memberships, source: "group_memberships", through: :all_differentiation_tags
   has_many :combined_groups_and_differentiation_tags, class_name: "Group", as: :context, inverse_of: :context
+  has_many :combined_group_and_differentiation_tag_categories, -> { active }, class_name: "GroupCategory", as: :context, inverse_of: :context
   has_many :active_combined_group_and_differentiation_tag_categories, -> { active }, class_name: "GroupCategory", as: :context, inverse_of: :context
   has_many :enrollment_terms, foreign_key: "root_account_id", inverse_of: :root_account
   has_many :active_enrollment_terms, -> { where("enrollment_terms.workflow_state<>'deleted'") }, class_name: "EnrollmentTerm", foreign_key: "root_account_id", inverse_of: false
@@ -2095,7 +2096,7 @@ class Account < ActiveRecord::Base
     raise "Invalid Service" unless AccountServices.allowable_services[service]
 
     allowed_service_names = (allowed_services || "").split(",").compact
-    # rubocop:disable Style/IdenticalConditionalBranches common line needs to happen after the conditional
+    # rubocop:disable Style/IdenticalConditionalBranches -- common line needs to happen after the conditional
     if allowed_service_names.count > 0 && !["+", "-"].include?(allowed_service_names[0][0, 1])
       allowed_service_names.reject! { |flag| flag.match("^[+-]?#{service}$") }
       # This account has a hard-coded list of services, so handle accordingly
@@ -2623,5 +2624,18 @@ class Account < ActiveRecord::Base
     sub_accounts.where(grading_standard: nil).find_each do |sub_account|
       sub_account.recompute_assignments_using_account_default(grading_standard)
     end
+  end
+
+  def horizon_domain
+    settings[:horizon_domain]
+  end
+
+  def horizon_redirect_url(canvas_url, reauthenticate: false, preview: false)
+    return nil unless horizon_domain
+
+    protocol = horizon_domain.include?("localhost") ? "http" : "https"
+    uri = Addressable::URI.parse("#{protocol}://#{horizon_domain}/redirect")
+    uri.query_values = { canvas_url: canvas_url, reauthenticate: reauthenticate, preview: preview }
+    uri.to_s
   end
 end

@@ -19,7 +19,6 @@
 #
 
 require_relative "../spec_helper"
-require_relative "../lti_1_3_spec_helper"
 
 RSpec.describe ApplicationController do
   context "group 1" do
@@ -268,14 +267,14 @@ RSpec.describe ApplicationController do
 
       it "sets the contextual timezone from the context" do
         Time.use_zone("Mountain Time (US & Canada)") do
-          controller.instance_variable_set(:@context, double(time_zone: Time.zone, asset_string: "", class_name: nil, grants_right?: false))
+          controller.instance_variable_set(:@context, double(time_zone: Time.zone, asset_string: "", class_name: nil, grants_any_right?: false))
           controller.js_env({})
           expect(controller.js_env[:CONTEXT_TIMEZONE]).to eq "America/Denver"
         end
       end
 
       context "session_timezone url param is given" do
-        let(:context_double) { double(asset_string: "", class_name: nil, grants_right?: false) }
+        let(:context_double) { double(asset_string: "", class_name: nil, grants_any_right?: false) }
 
         before do
           allow(controller).to receive(:params).and_return({ session_timezone: "America/New_York" })
@@ -949,7 +948,7 @@ RSpec.describe ApplicationController do
         let(:course) { course_model }
 
         before do
-          allow(course).to receive(:grants_any_right?).and_return true
+          allow(course).to receive(:grants_right?).and_return true
           controller.instance_variable_set(:@context, course)
         end
 
@@ -1177,7 +1176,7 @@ RSpec.describe ApplicationController do
             end
             let_once(:account) { Account.default }
 
-            include_context "lti_1_3_spec_helper"
+            include_context "key_storage_helper"
 
             before do
               tool.developer_key = developer_key
@@ -1242,7 +1241,7 @@ RSpec.describe ApplicationController do
 
               it 'sets the "login_hint" to the current user lti id' do
                 subject
-                expect(assigns[:lti_launch].params["login_hint"]).to eq Lti::Asset.opaque_identifier_for(user)
+                expect(assigns[:lti_launch].params["login_hint"]).to eq Lti::V1p1::Asset.opaque_identifier_for(user)
               end
 
               it "does not use the oidc_initiation_url as the resource_url" do
@@ -2770,10 +2769,10 @@ RSpec.describe ApplicationController do
           %i[
             calendar_contexts_limit
             open_registration
-            inbox_auto_response
-            inbox_signature_block
-            inbox_auto_response_for_students
-            inbox_signature_block_for_students
+            enable_inbox_signature_block
+            disable_inbox_signature_block_for_students
+            enable_inbox_auto_response
+            disable_inbox_auto_response_for_students
           ]
         )
       end
@@ -2784,9 +2783,11 @@ RSpec.describe ApplicationController do
     subject { controller.cached_js_env_root_account_settings }
 
     before do
-      Account.default[:settings] = { calendar_contexts_limit: 10, open_registration: true }
-      Account.default.save!
-      controller.instance_variable_set(:@domain_root_account, Account.default)
+      Account.suspend_callbacks(:sync_account_with_identity) do
+        Account.default[:settings] = { calendar_contexts_limit: 10, open_registration: true }
+        Account.default.save!
+        controller.instance_variable_set(:@domain_root_account, Account.default)
+      end
     end
 
     context "when domain root account has settings attribute" do
@@ -3271,23 +3272,38 @@ end
 
 RSpec.describe ApplicationController, "#set_js_env" do
   context "when a context is set" do
+    let(:account) { Account.default }
     let(:context) { course_model }
 
     before do
+      controller.instance_variable_set(:@domain_root_account, account)
       controller.instance_variable_set(:@context, context)
       allow(controller).to receive(:request).and_return(request)
     end
 
-    it "does not set current_context" do
+    it "does not set current_context when the user does not have :read or :read_as_admin rights" do
+      student = student_in_course(course: context).user
+      controller.instance_variable_set(:@current_user, student)
       expect(controller.js_env[:current_context]).to be_nil
     end
 
     context "when user has access to the context" do
-      before do
-        allow(context).to receive(:grants_right?).and_return(true)
+      it "sets current_context when the user has :read rights" do
+        teacher = teacher_in_course(course: context, active_all: true).user
+        controller.instance_variable_set(:@current_user, teacher)
+        expect(controller.js_env[:current_context]).to eq(
+          {
+            id: context.id,
+            url: "http://test.host/courses/#{context.id}",
+            name: context.name,
+            type: "Course"
+          }
+        )
       end
 
-      it "sets current_context" do
+      it "sets current_context when the user has :read_as_admin rights" do
+        admin = account_admin_user(account:)
+        controller.instance_variable_set(:@current_user, admin)
         expect(controller.js_env[:current_context]).to eq(
           {
             id: context.id,
@@ -3298,5 +3314,13 @@ RSpec.describe ApplicationController, "#set_js_env" do
         )
       end
     end
+  end
+end
+
+RSpec.describe ApplicationController, "#cached_js_env_account_features" do
+  it "includes new feature flags" do
+    flags = controller.cached_js_env_account_features
+
+    expect(flags).to have_key(:course_pace_pacing_with_mastery_paths)
   end
 end

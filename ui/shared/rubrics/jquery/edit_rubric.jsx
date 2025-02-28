@@ -40,6 +40,7 @@ import 'jquery-scroll-to-visible/jquery.scrollTo'
 import '@canvas/util/jquery/fixDialogButtons'
 import {showFlashAlert} from '@canvas/alerts/react/FlashAlert'
 import replaceTags from '@canvas/util/replaceTags'
+import useStore from '../stores'
 
 const I18n = createI18nScope('edit_rubric')
 
@@ -717,6 +718,14 @@ rubricEditing.init = function () {
 
   rubricEditing.htmlBody = $('html,body')
 
+  const rubricContainer = $('.rubric_container.rubric')
+  const rubricVisible = !$('.add_rubric_link').is(':visible')
+  if (rubricContainer && rubricVisible) {
+    const containerId = rubricContainer.attr('id') ?? ''
+    const rubricId = containerId.split('rubric_')[1];
+    useStore.setState({ rubricId });
+  }
+
   $('#rubrics')
     .on('click', '.edit_criterion_link, .long_description_link', function (event) {
       event.preventDefault()
@@ -963,6 +972,7 @@ rubricEditing.init = function () {
             if (callback && $.isFunction(callback)) {
               callback()
             }
+            useStore.setState({rubricId: undefined})
           })
         },
       })
@@ -974,10 +984,14 @@ rubricEditing.init = function () {
         .val(),
       description = $rubric_long_description_dialog.find('textarea.description').val(),
       $criterion = $rubric_long_description_dialog.data('current_criterion')
-    const valid = $rubric_long_description_dialog.validateForm({
-      required: ['description'],
-      labels: {description: I18n.t('Description')},
-    })
+    const $form = $rubric_long_description_dialog.find('#edit_criterion_form')
+    const data = $form.getFormData()
+    if (!data['description']) {
+      showDescriptionError($form)
+      return
+    }
+
+    const valid = $rubric_long_description_dialog.validateForm({})
     if (!valid) {
       return
     }
@@ -1010,12 +1024,13 @@ rubricEditing.init = function () {
   $rubric_rating_dialog.find('.save_button').click(event => {
     event.preventDefault()
     event.stopPropagation()
-    const data = $rubric_rating_dialog.find('#edit_rating_form').getFormData()
-    const valid = $rubric_rating_dialog.find('#edit_rating_form').validateForm({
-      data,
-      required: ['description'],
-      labels: {description: I18n.t('Rating Title')},
-    })
+    const $form = $rubric_rating_dialog.find('#edit_rating_form')
+    const data = $form.getFormData()
+    if (!data['description']) {
+      showDescriptionError($form)
+      return
+    }
+    const valid = $rubric_rating_dialog.find('#edit_rating_form').validateForm({data})
     if (!valid) {
       return
     }
@@ -1264,6 +1279,7 @@ rubricEditing.init = function () {
           if (!rubric.permissions?.update) {
             $rubric.find('.edit_rubric_link').addClass('copy_edit')
           }
+          useStore.setState({rubricId: rubric.id})
         },
         () => {
           $rubric_dialog.loadingImage('remove')
@@ -1405,6 +1421,7 @@ rubricEditing.init = function () {
         $(this).parents('tr').hide()
 
         const rubric = data.rubric
+        useStore.setState({rubricId: rubric.id})
 
         rubric.rubric_association_id = data.rubric_association.id
         rubric.use_for_grading = data.rubric_association.use_for_grading
@@ -1669,5 +1686,20 @@ const shouldUseMasteryScale = $rubric => {
   }
   return $rubric.find('.criterion').hasClass('learning_outcome_criterion')
 }
+
+const showDescriptionError = $form => {
+  $form.find('.description_error_message').show();
+  $form.find('[name="description"]').css('border', '1px solid red');
+
+  clearTimeout($form.data('ratingTitleErrorDisplayed'));
+
+  const ratingTitleErrorDisplayed = setTimeout(() => removeDescriptionError($form), 5000);
+  $form.data('ratingTitleErrorDisplayed', ratingTitleErrorDisplayed);
+};
+
+const removeDescriptionError = $form => {
+  $form.find('.description_error_message').hide();
+  $form.find('[name="description"]').css('border', '1px solid #ccc');
+};
 
 export default rubricEditing

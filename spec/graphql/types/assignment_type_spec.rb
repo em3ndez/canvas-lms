@@ -181,6 +181,30 @@ describe Types::AssignmentType do
     end
   end
 
+  describe "rubric self assessments" do
+    before do
+      rubric_for_course
+      rubric_association_model(context: course, rubric: @rubric, association_object: assignment, purpose: "grading")
+      course.enable_feature!(:enhanced_rubrics)
+      course.enable_feature!(:platform_service_speedgrader)
+      course.root_account.enable_feature!(:rubric_self_assessment)
+      assignment.update(rubric_self_assessment_enabled: true)
+    end
+
+    it "returns rubric self assessment enabled" do
+      expect(assignment_type.resolve("rubricSelfAssessmentEnabled")).to be true
+    end
+
+    it "returns can_update_rubric_self_assessment" do
+      expect(assignment_type.resolve("canUpdateRubricSelfAssessment")).to be true
+    end
+
+    it "returns can_update_rubric_self_assessment false if the due dates have passed" do
+      assignment.update(due_at: 1.day.ago)
+      expect(assignment_type.resolve("canUpdateRubricSelfAssessment")).to be false
+    end
+  end
+
   it "works with moderated grading" do
     assignment.moderated_grading = true
     assignment.grader_count = 1
@@ -1282,6 +1306,29 @@ describe Types::AssignmentType do
         expect(student_overridden_assignment_type.resolve(
                  "assignmentTargetConnection { edges { node { title } } }"
                )).to be_nil
+      end
+    end
+
+    context "anonymous_student_identities" do
+      context "when user does not have manage_grades permission" do
+        let(:context) { { current_user: student } }
+
+        it "returns null in place of the PostPolicy" do
+          resolver = GraphQLTypeTester.new(assignment, context)
+          expect(resolver.resolve("anonymousStudentIdentities {anonymousId}")).to be_nil
+        end
+      end
+
+      context "when user has manage_grades permission" do
+        let(:context) { { current_user: teacher } }
+        let(:resolver) { GraphQLTypeTester.new(assignment, context) }
+
+        it "returns the anonymous student identities for the assignment" do
+          assignment.anonymous_grading = true
+          assignment.save!
+          result = resolver.resolve("anonymousStudentIdentities {anonymousId}")
+          expect(result).to match_array(assignment.submissions.pluck(:anonymous_id))
+        end
       end
     end
   end

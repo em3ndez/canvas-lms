@@ -47,6 +47,7 @@ import {
 } from '@canvas/rubrics/react/utils'
 import sanitizeHtml from 'sanitize-html-with-tinymce'
 import {containsHtmlTags, formatMessage} from '@canvas/util/TextHelper'
+import {RubricSelfAssessmentSettingsWrapper} from './react/RubricSelfAssessmentSettingsWrapper'
 
 if (!('INST' in window)) window.INST = {}
 
@@ -225,6 +226,10 @@ $(() => {
       courseID: ENV.COURSE_ID,
       assetType: 'Assignment',
       assetID: ENV.ASSIGNMENT_ID,
+      onFetchSuccess: () => {
+        $('.module-sequence-footer-right').prepend($('#mark-as-done-container'))
+        $('#mark-as-done-container').css({'margin-right': '4px'})
+      },
       location: window.location,
     })
   })
@@ -338,6 +343,7 @@ $(() => {
       ? {
           ...mapRubricUnderscoredKeysToCamelCase(ENV.assigned_rubric),
           can_update: ENV.assigned_rubric?.can_update,
+          association_count: ENV.assigned_rubric?.association_count,
         }
       : undefined
     const assignmentRubricAssociation = envRubricAssociation
@@ -352,14 +358,17 @@ $(() => {
         assignmentRubric={assignmentRubric}
         assignmentRubricAssociation={assignmentRubricAssociation}
         canManageRubrics={ENV.PERMISSIONS.manage_rubrics}
-        canUpdateSelfAssessment={ENV.can_update_rubric_self_assessment}
         contextAssetString={ENV.context_asset_string}
         courseId={ENV.COURSE_ID}
-        rubricSelfAssessmentEnabled={ENV.rubric_self_assessment_enabled}
         rubricSelfAssessmentFFEnabled={ENV.rubric_self_assessment_ff_enabled}
       />,
     )
   }
+
+  createOrUpdateRoot(
+    'enhanced-rubric-self-assessment-edit',
+    <RubricSelfAssessmentSettingsWrapper assignmentId={ENV.ASSIGNMENT_ID} />,
+  )
 })
 
 $(() => {

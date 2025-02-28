@@ -29,9 +29,7 @@ import {useScope as createI18nScope} from '@canvas/i18n'
 import $ from 'jquery'
 import React from 'react'
 import {QueryProvider} from '@canvas/query'
-import doFetchApi from '@canvas/do-fetch-api-effect'
-import SectionList from '../react/SectionList'
-import PageList from '../react/PageList'
+import PortfolioPortal from '../react/PortfolioPortal'
 import ReactDOM from 'react-dom/client'
 import userSettings from '@canvas/user-settings'
 import RichContentEditor from '@canvas/rce/RichContentEditor'
@@ -52,7 +50,9 @@ import '@canvas/util/templateData' /* fillTemplateData, getTemplateData */
 import 'jquery-scroll-to-visible/jquery.scrollTo'
 import 'jqueryui/progressbar'
 import 'jqueryui/sortable'
-import {Alert} from '@instructure/ui-alerts'
+import CreatePortfolioForm from '../react/CreatePortfolioForm'
+import {Portal} from '@instructure/ui-portal'
+import PageNameContainer from '../react/PageNameContainer'
 
 const I18n = createI18nScope('eportfolio')
 
@@ -177,62 +177,52 @@ function saveObject($obj, type) {
   return true
 }
 
-function renderSectionList(portfolio, isOwner) {
-  const sectionListContainer = document.getElementById('section_list_mount')
-  if (sectionListContainer) {
-    const root = ReactDOM.createRoot(sectionListContainer)
-    root.render(
-      <QueryProvider>
-        <SectionList portfolio={portfolio} isOwner={isOwner} />
-      </QueryProvider>,
+function renderCreateForm() {
+  const createContainer = document.getElementById('create_portfolio_mount')
+  const formContainer = document.getElementById('create_portfolio_form_mount')
+
+  if (createContainer) {
+    return (
+      <Portal open={true} mountNode={createContainer}>
+        <CreatePortfolioForm formMount={formContainer} />
+      </Portal>
     )
   }
 }
 
-function renderPageList(portfolio, isOwner, sectionId) {
+function renderPortal(portfolio_id) {
+  const sectionListContainer = document.getElementById('section_list_mount')
+  const submissionContainer = document.getElementById('recent_submission_mount')
   const pageListContainer = document.getElementById('page_list_mount')
-  if (pageListContainer) {
-    const root = ReactDOM.createRoot(pageListContainer)
-    root.render(
-      <QueryProvider>
-        <PageList
-          portfolio={portfolio}
-          isOwner={isOwner}
-          sectionId={sectionId}
-          onUpdate={json => $(document).triggerHandler('page_updated', json)}
-        />
-      </QueryProvider>,
-    )
-  }
+
+  return (
+    <QueryProvider>
+      <PortfolioPortal
+        portfolioId={portfolio_id}
+        sectionListNode={sectionListContainer}
+        pageListNode={pageListContainer}
+        submissionNode={submissionContainer}
+        onPageUpdate={json => $(document).triggerHandler('page_updated', json)}
+      />
+    </QueryProvider>
+  )
 }
 
 $(document).ready(function () {
-  const fetchPortfolio = async () => {
-    const {json} = await doFetchApi({
-      path: `/eportfolios/${ENV.eportfolio_id}`,
-    })
-    return json
+  const portfolio_id = ENV.eportfolio_id
+  // formRoot is for the name field in the edit page form and renders dynamically
+  // root is for everything else and should always be rendered
+  let formRoot = null
+  const pageNameMount = document.getElementById('page_name_mount')
+  if (pageNameMount) {
+    formRoot = ReactDOM.createRoot(pageNameMount)
   }
-  fetchPortfolio()
-    .then(portfolio => {
-      const isOwner = ENV.owner_view
-      const sectionId = ENV.category_id
-      renderSectionList(portfolio, isOwner)
-      renderPageList(portfolio, isOwner, sectionId)
-    })
-    .catch(() => {
-      console.log('Failed to load section list')
-      const sectionListContainer = document.getElementById('section_list_mount')
-      if (sectionListContainer) {
-        const root = ReactDOM.createRoot(sectionListContainer)
-        root.render(<Alert variant="error">{I18n.t('Failed to load section list')}</Alert>)
-      }
-      const pageListContainer = document.getElementById('page_list_mount')
-      if (pageListContainer) {
-        const root = ReactDOM.createRoot(pageListContainer)
-        root.render(<Alert variant="error">{I18n.t('Failed to load page list')}</Alert>)
-      }
-    })
+  const root = ReactDOM.createRoot(document.getElementById('eportfolio_portal_mount'))
+  if (portfolio_id) {
+    root.render(renderPortal(portfolio_id))
+  } else {
+    root.render(renderCreateForm())
+  }
   // Add ePortfolio related
   $('.add_eportfolio_link').click(function (event) {
     event.preventDefault()
@@ -279,6 +269,25 @@ $(document).ready(function () {
         RichContentEditor.loadNewEditor($richText, {defaultContent: sectionData.section_content})
       }
     })
+    if (formRoot) {
+      const currentPageName = $('#content h2 .name').text()
+      const pageButtonContainer = document.getElementById('page_button_mount')
+      const sideButtonContainer = document.getElementById('side_button_mount')
+
+      formRoot.render(
+        <PageNameContainer
+          pageName={currentPageName}
+          contentBtnNode={pageButtonContainer}
+          sideBtnNode={sideButtonContainer}
+          onPreview={previewPage}
+          onCancel={cancel}
+          onSave={submitPage}
+          onKeepEditing={keepEditing}
+          setHidden={setHidden}
+        />,
+      )
+    }
+
     $('#edit_page_form :text:first').focus().select()
     $('#page_comments_holder').hide()
     $(document).triggerHandler('editing_page')
@@ -289,58 +298,61 @@ $(document).ready(function () {
       $('#edit_page_form .show_comments_box').showIf($(this).prop('checked'))
     })
     .change()
-  $('#edit_page_sidebar .submit_button').click(() => {
+  function submitPage() {
+    formRoot.render(null)
     $('#edit_page_form').submit()
-  })
-  $('#edit_page_form,#edit_page_sidebar')
-    .find('button.preview_button')
-    .click(function () {
-      $('#page_content .section.failed').remove()
-      $('#edit_page_form,#page_content,#page_sidebar').addClass('previewing')
-      $('#page_content .section').each(function () {
-        const $section = $(this)
-        const $preview = $section
-          .find('.section_content')
-          .clone()
-          .removeClass('section_content')
-          .addClass('preview_content')
-          .addClass('preview_section')
-        const section_type = $section.getTemplateData({textValues: ['section_type']}).section_type
-        if (section_type === 'html') {
-          // xsslint safeString.function sanitizeHtml
-          $preview.html(sanitizeHtml($section.find('.edit_section').val()))
-          $section.find('.section_content').after($preview)
-        } else if (section_type === 'rich_text') {
-          const $richText = $section.find('.edit_section')
-          const editorContent = RichContentEditor.callOnRCE($richText, 'get_code')
-          if (editorContent) {
-            $preview.html(sanitizeHtml(editorContent))
-          }
-          $section.find('.section_content').after($preview)
+  }
+  function previewPage() {
+    $('#page_content .section.failed').remove()
+    $('#edit_page_form,#page_content,#page_sidebar').addClass('previewing')
+    $('#page_content .section').each(function () {
+      const $section = $(this)
+      const $preview = $section
+        .find('.section_content')
+        .clone()
+        .removeClass('section_content')
+        .addClass('preview_content')
+        .addClass('preview_section')
+      const section_type = $section.getTemplateData({textValues: ['section_type']}).section_type
+      if (section_type === 'html') {
+        // xsslint safeString.function sanitizeHtml
+        $preview.html(sanitizeHtml($section.find('.edit_section').val()))
+        $section.find('.section_content').after($preview)
+      } else if (section_type === 'rich_text') {
+        const $richText = $section.find('.edit_section')
+        const editorContent = RichContentEditor.callOnRCE($richText, 'get_code')
+        if (editorContent) {
+          $preview.html(sanitizeHtml(editorContent))
         }
-      })
+        $section.find('.section_content').after($preview)
+      }
     })
-    .end()
-    .find('.keep_editing_button')
-    .click(() => {
-      $('#edit_page_form,#page_content,#page_sidebar').removeClass('previewing')
-      $('#page_content .preview_section').remove()
+  }
+
+  function keepEditing() {
+    $('#edit_page_form,#page_content,#page_sidebar').removeClass('previewing')
+    $('#page_content .preview_section').remove()
+  }
+
+  function cancel() {
+    formRoot.render(null)
+    $('#edit_page_form .edit_rich_text_content .edit_section').each(function () {
+      RichContentEditor.destroyRCE($(this))
     })
-    .end()
-    .find('.cancel_button')
-    .click(function () {
-      $('#edit_page_form .edit_rich_text_content .edit_section').each(function () {
-        RichContentEditor.destroyRCE($(this))
-      })
-      $('#edit_page_form,#page_content,#page_sidebar').removeClass('editing')
-      $('#page_content .section.unsaved').remove()
-      $('.edit_content_link_holder').show()
-      $('#edit_page_form .edit_section').each(function () {
-        $(this).remove()
-      })
-      $('#page_content .section .form_content').remove()
-      $('#page_comments_holder').show()
+    $('#edit_page_form,#page_content,#page_sidebar').removeClass('editing')
+    $('#page_content .section.unsaved').remove()
+    $('.edit_content_link_holder').show()
+    $('#edit_page_form .edit_section').each(function () {
+      $(this).remove()
     })
+    $('#page_content .section .form_content').remove()
+    $('#page_comments_holder').show()
+  }
+
+  function setHidden(pageName) {
+    document.getElementById('page_name_field').value = pageName
+  }
+
   $('#edit_page_form').formSubmit({
     processData(_data) {
       $('#page_content .section.unsaved').removeClass('unsaved')
@@ -466,14 +478,14 @@ $(document).ready(function () {
     handle: '.move_link',
     helper: 'clone',
     axis: 'y',
-    start(event, ui) {
+    start(_event, ui) {
       const $section = $(ui.item)
       if ($section.getTemplateData({textValues: ['section_type']}).section_type === 'rich_text') {
         const $richText = $section.find('.edit_section')
         RichContentEditor.destroyRCE($richText)
       }
     },
-    stop(event, ui) {
+    stop(_event, ui) {
       const $section = $(ui.item)
       if ($section.getTemplateData({textValues: ['section_type']}).section_type === 'rich_text') {
         const $richText = $section.find('.edit_section')
@@ -605,97 +617,6 @@ $(document).ready(function () {
       $section.formErrors(data.errors || data)
     },
   })
-  $('#recent_submissions .submission').keydown(function (event) {
-    const count = $(event.target).closest('a').length
-    if (count === 0 || count === 1) {
-      const code = event.which
-      if (code === 13 || code === 32) {
-        if (count === 0) {
-          // Add Submission
-          $(this).click()
-        } else if (count === 1) {
-          // Open Submission
-          $(event.target).closest('a')[0].click()
-        }
-      }
-    }
-  })
-  $('#recent_submissions .submission').click(function (event) {
-    if ($(event.target).closest('a').length === 0) {
-      event.preventDefault()
-      event.stopPropagation()
-      $(this).removeClass('active-leaf')
-      $('#category_select').triggerHandler('change')
-      const id = $(this).getTemplateData({textValues: ['submission_id']}).submission_id
-      $('#add_submission_form .submission_id').val(id)
-      const assignment = $(this).find('.assignment_title').text()
-      const context = $(this).find('.context_name').text()
-      $('#add_submission_form .submission_description').val(
-        I18n.t('default_description', 'This is my %{assignment} submission for %{course}.', {
-          assignment,
-          course: context,
-        }),
-      )
-      $('#add_submission_form')
-        .dialog({
-          title: I18n.t('titles.add_submission', 'Add Page for Submission'),
-          width: 400,
-          open() {
-            $(this).find(':text:visible:first').val(assignment).focus().select()
-            $(document).triggerHandler('submission_dialog_opened')
-          },
-          modal: true,
-          zIndex: 1000,
-        })
-        .fixDialogButtons()
-    }
-  })
-  $('#add_submission_form .cancel_button').click(() => {
-    $('#add_submission_form').dialog('close')
-  })
-  $('#add_submission_form').formSubmit({
-    processData(_data) {
-      const url = $(this).find('.add_eportfolio_entry_url').attr('href')
-      $(this).attr('action', url)
-    },
-    beforeSubmit(_data) {
-      $(this).loadingImage()
-    },
-    success(data) {
-      $(this).loadingImage('remove')
-      $(this).dialog('close')
-      const entry = data.eportfolio_entry
-      /* eslint-disable no-empty */
-      try {
-        const submission_id = entry.content[1].submission_id
-        $('#submission_' + submission_id + ',#recent_submission_' + submission_id).addClass(
-          'already_used',
-        )
-      } catch (e) {}
-      /* eslint-enable no-empty */
-      let url = $(this).find('.eportfolio_named_entry_url').attr('href')
-      url = replaceTags(url, 'category_slug', entry.category_slug)
-      url = replaceTags(url, 'slug', entry.slug)
-      window.location.href = url
-      $(document).triggerHandler('page_added', data)
-    },
-  })
-  $('#category_select')
-    .change(function () {
-      const id = $(this).val()
-      if (id === 'new') {
-        return
-      }
-      $('#page_select_list .page_select:not(#page_select_blank)').remove()
-      $('#structure_category_' + id)
-        .find('.entry_list li.entry')
-        .each(function () {
-          const $page = $('#page_select_blank').clone(true).removeAttr('id')
-          $page.text($(this).getTemplateData({textValues: ['name']}).name)
-          $('#page_select_list').append($page.show())
-        })
-    })
-    .triggerHandler('change')
 
   $('.delete_comment_link').click(function (event) {
     event.preventDefault()
@@ -733,7 +654,7 @@ $(document).ready(function () {
       $(this).addClass('active')
     },
   })
-  $(document).bind('page_added page_updated', (event, data) => {
+  $(document).bind('page_added page_updated', (_event, data) => {
     const entry = data.eportfolio_entry
     const $activePage = $('#eportfolio_entry_' + entry.id)
     if ($activePage.length) {

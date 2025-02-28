@@ -27,7 +27,7 @@
         <option value="on_paper" {{selectedIf defaultToOnPaper}} {{disabledIf isHorizonCourse}}>
           {{#t "submission_types.on_paper"}}On Paper{{/t}}
         </option>
-        <option value="external_tool" {{selectedIf isGenericExternalTool}} {{disabledIf isHorizonCourse}}>
+        <option value="external_tool" {{selectedIf isGenericExternalTool}}>
           {{#t "submission_types.external_tool"}}External Tool{{/t}}
         </option>
         {{#if submissionTypeSelectionTools}}
@@ -88,6 +88,8 @@
           disabled=submissionTypesFrozen}}
           {{#t "labels.allows_annotated_document"}}Student Annotation{{/t}}
         </label>
+        {{!-- Student Annotation File Upload Error Container --}}
+        <div id="online_submission_types[student_annotation]_errors"></div>
         <div id="assignment_annotated_document_info" style="{{hiddenUnless acceptsAnnotatedDocument}}">
           {{#t}}Consider selecting multiple submission types to accommodate students who may not be able to create
           annotations.{{/t}}
@@ -269,25 +271,23 @@
                    value="{{externalToolIframeHeight}}"/>
 
             <div class="ic-Input-group">
-              <div class="ic-Input-group__add-on" aria-hidden="true">
-                <i class="icon-link"></i>
-              </div>
-
-              <input id="assignment_external_tool_tag_attributes_url"
+              <div class="ic-Input"
+                   style="margin-right:5px;margin-left:0px;border-top-right-radius:3px;border-bottom-right-radius:3px"
+                   id="assignment_external_tool_tag_attributes_url_container" >
+                 <input id="assignment_external_tool_tag_attributes_url"
                      name="external_tool_tag_attributes[url]"
                      class="ic-Input"
-                     type="url"
                      value="{{externalToolUrl}}"
+                     type="text"
                      placeholder="http://www.example.com/launch"
+                     style="margin-right:5px;margin-left:0px;border-top-right-radius:3px;border-bottom-right-radius:3px;height:100%"
                   {{disabledIfIncludes frozenAttributes "submission_types"}} />
+              </div>
               <button id="assignment_external_tool_tag_attributes_url_find"
-                      class="Button"
+                      class="btn btn-secondary"
                       type="button"
                       {{disabledIfIncludes frozenAttributes "submission_types"}}
-              >
-                  {{#t}}Find{{/t}}
-              </button>
-
+              >{{#t}}Find{{/t}}</button>
               {{#if submissionTypesFrozen}}
               <input name="external_tool_tag_attributes[url]"
                      type="hidden"
@@ -295,6 +295,7 @@
               {{/if}}
 
             </div>
+            <div id="external_tool_tag_attributes[url]_errors"></div>
           </div>
           <input id="assignment_external_tool_tag_attributes_content_type"
                  name="external_tool_tag_attributes[content_type]"

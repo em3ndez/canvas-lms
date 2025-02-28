@@ -6812,6 +6812,38 @@ describe Submission do
         expect(@submission.visible_rubric_assessments_for(@reviewing_student)[0].assessor).to eql(@reviewing_student)
       end
     end
+
+    context "self assessments" do
+      before(:once) do
+        course = Course.create!
+        @student = course.enroll_student(User.create!, workflow_state: "active").user
+
+        assignment = course.assignments.create!(peer_reviews: true, anonymous_peer_reviews: true)
+        rubric_association = rubric_association_model(context: course, association_object: assignment, purpose: "grading")
+
+        @submission = assignment.submission_for_student(@student)
+        rubric_association.rubric_assessments.create!({
+                                                        artifact: @submission,
+                                                        assessment_type: "self_assessment",
+                                                        assessor: @student,
+                                                        rubric: rubric_association.rubric,
+                                                        user: @student
+                                                      })
+      end
+
+      it "includes self assessments" do
+        assessments = @submission.visible_rubric_assessments_for(@student)
+        expect(assessments.count).to eq 1
+        expect(assessments.first.assessment_type).to eq "self_assessment"
+      end
+
+      it "includes self assessments no matter the attempt" do
+        @submission.update!(attempt: 2)
+        assessments = @submission.visible_rubric_assessments_for(@student, attempt: 2)
+        expect(assessments.count).to eq 1
+        expect(assessments.first.assessment_type).to eq "self_assessment"
+      end
+    end
   end
 
   describe "#rubric_assessment" do
@@ -9657,6 +9689,37 @@ describe Submission do
     it "does not update the parent submission when the checkpoints flag is disabled" do
       @checkpoint_submission.root_account.disable_feature!(:discussion_checkpoints)
       expect { @checkpoint_submission.update!(score: 3) }.not_to change { @parent_submission.reload.score }
+    end
+  end
+
+  describe "lti_attempt_id is set automatically" do
+    before do
+      course_with_teacher
+      @assignment = @course.assignments.create!(title: "some assignment")
+      @submission = @assignment.submissions.create!(user: @teacher)
+    end
+
+    it "for new submissions" do
+      expect(@submission.lti_attempt_id.length).to be > 30
+    end
+
+    it "for existing submissions on save" do
+      @submission.update_column(:lti_id, nil)
+      @submission.save!
+      expect(@submission.lti_attempt_id.length).to be > 30
+    end
+
+    it "does not change already existing lti_id, but lit_attempt_id is different" do
+      old_lti_attempt_id = @submission.lti_attempt_id
+      @submission.update(attempt: 2)
+      expect(@submission.reload.lti_attempt_id.split(":").first).to eq old_lti_attempt_id.split(":").first
+      expect(@submission.lti_attempt_id).not_to eq old_lti_attempt_id
+    end
+
+    it "cannot change already existing lti_id" do
+      @submission.lti_id = "new_id"
+      expect(@submission.save).to be_falsey
+      expect(@submission.errors[:lti_id]).to include("Cannot change lti_id!")
     end
   end
 end

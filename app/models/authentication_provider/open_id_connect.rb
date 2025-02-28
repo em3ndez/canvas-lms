@@ -330,7 +330,12 @@ class AuthenticationProvider
 
     def download_discovery
       discovery_url = self.discovery_url
+
+      # was the Discovery URL changed?
       download = discovery_url.present? && discovery_url_changed?
+
+      # was the authentication provider restored?
+      download ||= self.class.restorable? && active? && workflow_state_changed?
 
       # infer the discovery url from the issuer if possible
       if discovery_url.blank? && issuer_changed? && issuer.present?
@@ -389,7 +394,7 @@ class AuthenticationProvider
             if issuer.blank?
               raise OAuthValidationError, t("No issuer configured for OpenID Connect provider")
             end
-            unless issuer === id_token["iss"] # rubocop:disable Style/CaseEquality may be a string or a RegEx
+            unless issuer === id_token["iss"] # rubocop:disable Style/CaseEquality -- may be a string or a RegEx
               raise OAuthValidationError, t("Invalid JWT issuer: %{issuer}", issuer: id_token["iss"])
             end
           end
@@ -467,6 +472,8 @@ class AuthenticationProvider
                         zoneinfo
                         locale
                         updated_at].freeze
+    private_constant :PROFILE_CLAIMS
+
     def scope_for_options
       result = (scope || "").split
 

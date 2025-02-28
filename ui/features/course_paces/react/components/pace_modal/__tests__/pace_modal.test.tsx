@@ -51,6 +51,7 @@ const defaultProps: ResponsiveComponentProps = {
   compressDates: jest.fn(),
   uncompressDates: jest.fn(),
   setOuterResponsiveSize: jest.fn(),
+  isBulkEnrollment: false
 }
 
 afterEach(() => {
@@ -78,5 +79,36 @@ describe('PaceModal', () => {
   it('renders the student enrollment title', () => {
     const {getByText} = renderConnected(<PaceModal {...defaultProps} coursePace={STUDENT_PACE} />)
     expect(getByText('Student Pace: Custom Pace')).toBeInTheDocument()
+  })
+
+  describe('course_pace_time_selection is enabled', () => {
+    beforeAll(() => {
+      window.ENV.FEATURES ||= {}
+      window.ENV.FEATURES.course_pace_time_selection = true
+    })
+
+    it('Time selection section is shown', () => {
+      const {getByTestId} = renderConnected(<PaceModal {...defaultProps} coursePace={STUDENT_PACE} />)
+      expect(getByTestId('time-selection-section')).toBeInTheDocument()
+    })
+  })
+
+  describe('course_pace_weighted_assignments is enabled', () => {
+    beforeAll(() => {
+      window.ENV.FEATURES ||= {}
+      window.ENV.FEATURES.course_pace_weighted_assignments = true
+    })
+
+    it('set weighted assignment duration tray is shown', () => {
+      const {getByTestId, getByRole} = renderConnected(<PaceModal {...defaultProps} coursePace={STUDENT_PACE} />)
+
+      const settingsButton = getByRole('button', {name: 'Modify Settings'})
+      act(() => settingsButton.click())
+
+      const weightedAssignmentsOpgion = getByTestId('weighted-assignment-duration-option')
+      act(() => weightedAssignmentsOpgion.click())
+
+      expect(getByTestId('weighted-assignments-tray')).toBeInTheDocument()
+    })
   })
 })

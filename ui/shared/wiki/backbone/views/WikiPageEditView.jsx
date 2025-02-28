@@ -17,6 +17,7 @@
 
 import $ from 'jquery'
 import React, {lazy, Suspense} from 'react'
+import ReactDOM from 'react-dom'
 import {createRoot} from 'react-dom/client'
 import RichContentEditor from '@canvas/rce/RichContentEditor'
 import template from '../../jst/WikiPageEdit.handlebars'
@@ -31,6 +32,9 @@ import renderWikiPageTitle from '../../react/renderWikiPageTitle'
 import {renderAssignToTray} from '../../react/renderAssignToTray'
 import {itemTypeToApiURL} from '@canvas/context-modules/differentiated-modules/utils/assignToHelper'
 import {LATEST_BLOCK_DATA_VERSION} from '@canvas/block-editor/react/utils'
+import {TITLE_MAX_LENGTH} from '../../utils/constants'
+import MasteryPathToggle from '@canvas/mastery-path-toggle/react/MasteryPathToggle'
+import DueDateList from '@canvas/due-dates/backbone/models/DueDateList'
 
 const I18n = createI18nScope('pages')
 
@@ -60,9 +64,7 @@ export default class WikiPageEditView extends ValidatedFormView {
     this.prototype.template = template
     this.prototype.className = 'form-horizontal edit-form validated-form-view'
     this.prototype.dontRenableAfterSaveSuccess = true
-    if (window.ENV.FEATURES?.selective_release_ui_api) {
-      this.prototype.disablingDfd = new $.Deferred()
-    }
+    this.prototype.disablingDfd = new $.Deferred()
     this.optionProperty('wiki_pages_path')
     this.optionProperty('WIKI_RIGHTS')
     this.optionProperty('PAGE_RIGHTS')
@@ -74,9 +76,13 @@ export default class WikiPageEditView extends ValidatedFormView {
     if (!this.PAGE_RIGHTS) this.PAGE_RIGHTS = {}
     this.queryParams = new URLSearchParams(window.location.search)
     this.enableAssignTo =
-      window.ENV.FEATURES?.selective_release_ui_api &&
       ENV.COURSE_ID != null &&
       ENV.WIKI_RIGHTS.manage_assign_to
+    this.coursePaceWithMasteryPaths =
+      this.enableAssignTo &&
+      ENV.IN_PACED_COURSE &&
+      ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED &&
+      ENV.FEATURES.course_pace_pacing_with_mastery_paths
     const redirect = () => {
       window.location.href = this.model.get('html_url')
     }
@@ -100,9 +106,14 @@ export default class WikiPageEditView extends ValidatedFormView {
     }
 
     const data = this.overrides
-    data.only_visible_to_overrides = ENV.IN_PACED_COURSE
+
+    if (ENV.FEATURES.course_pace_pacing_with_mastery_paths && ENV.IN_PACED_COURSE && ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED) {
+      data.only_visible_to_overrides = this.overrides.only_visible_to_overrides
+    } else {
+      data.only_visible_to_overrides = ENV.IN_PACED_COURSE
       ? false
       : this.overrides.only_visible_to_overrides
+    }
 
     $.ajaxJSON(url, 'PUT', JSON.stringify(data), redirect, errorCallBack, {
       contentType: 'application/json',
@@ -151,11 +162,13 @@ export default class WikiPageEditView extends ValidatedFormView {
 
     json.content_is_locked = this.lockedItems.content
     json.show_assign_to = this.enableAssignTo
+    json.course_pace_with_mastery_paths = this.coursePaceWithMasteryPaths
     json.edit_with_block_editor = this.model.get('editor') === 'block_editor'
 
     if (
       (this.queryParams.get('editor') === 'block_editor' || window.ENV.text_editor_preference === "block_editor")
       && this.model.get('body') == null
+      && this.model.get('editor') !== 'rce'
     ) {
       json.edit_with_block_editor = true
     }
@@ -192,7 +205,7 @@ export default class WikiPageEditView extends ValidatedFormView {
   renderStudentTodoAtDate() {
     const elt = this.$studentTodoAtContainer[0]
     if (elt) {
-       
+
       return createRoot(elt).render(
         <DueDateCalendarPicker
           dateType="todo_date"
@@ -242,9 +255,29 @@ export default class WikiPageEditView extends ValidatedFormView {
       renderAssignToTray(mountElement, {pageId, onSync, pageName})
     }
 
+    if (this.coursePaceWithMasteryPaths) {
+      const mountElement = document.getElementById('mastery-paths-toggle-edit-page')
+      const onSync = payload => {
+        this.overrides = { assignment_overrides: payload, only_visible_to_overrides: payload.some((override) => override.noop_id == 1) }
+      }
+
+      ReactDOM.render(
+        React.createElement(MasteryPathToggle, {
+          onSync,
+          fetchOwnOverrides: true,
+          courseId: ENV.COURSE_ID,
+          itemType: 'wiki_page',
+          itemContentId: this.model.id
+        }),
+        mountElement,
+      )
+    }
+
     let chose_block_editor = window.location.href.split("?").filter((piece) => { return piece.indexOf('editor=block_editor') !== -1 }).length === 1
     if(!chose_block_editor){
-      chose_block_editor = window.ENV.text_editor_preference === "block_editor" && this.model.get('body') == null
+      chose_block_editor = window.ENV.text_editor_preference === "block_editor"
+        && this.model.get('body') == null
+        && this.model.get('editor') !== 'rce'
     }
 
     if ( (this.model.get('editor') === 'block_editor' && this.model.get('block_editor_attributes')) || chose_block_editor ) {
@@ -358,6 +391,15 @@ export default class WikiPageEditView extends ValidatedFormView {
         {
           type: 'required',
           message: I18n.t('A page title is required'),
+        },
+      ]
+    }
+
+    if (data.title?.length > TITLE_MAX_LENGTH) {
+      errors.title = [
+        {
+          type: 'too_long',
+          message: I18n.t("Title can't exceed %{max} characters", {max: TITLE_MAX_LENGTH}),
         },
       ]
     }

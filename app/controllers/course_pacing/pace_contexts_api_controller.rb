@@ -54,8 +54,12 @@ class CoursePacing::PaceContextsApiController < ApplicationController
   def index
     contexts = CoursePacing::PaceContextsService.new(@context).contexts_of_type(@type, params: filter_params)
     paginated_contexts = Api.paginate(contexts, self, api_v1_pace_contexts_url, total_entries: contexts.count)
+
+    @course_pace_pacing_status_labels_enabled = @context.root_account.feature_enabled?(:course_pace_pacing_status_labels)
+    overdue_items_by_user = (@course_pace_pacing_status_labels_enabled && @type == "student_enrollment") ? CoursePacing::CoursePaceService.off_pace_counts_by_user(contexts) : {}
+
     render json: {
-      pace_contexts: paginated_contexts.map { |c| CoursePacing::PaceContextsPresenter.as_json(c) },
+      pace_contexts: paginated_contexts.map { |c| CoursePacing::PaceContextsPresenter.as_json(c, overdue_items_by_user) },
       total_entries: contexts.count
     }
   end
@@ -71,7 +75,7 @@ class CoursePacing::PaceContextsApiController < ApplicationController
   end
 
   def authorize_action
-    authorized_action(@context, @current_user, [:manage_content, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS])
+    authorized_action(@context, @current_user, RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS)
   end
 
   def load_type

@@ -57,6 +57,7 @@ const SEARCH_SECTION_CONTEXTS_API = `/api/v1/courses/${COURSE.id}/pace_contexts?
 const STUDENT_CONTEXTS_API_WITH_DESC_SORTING = `/api/v1/courses/${COURSE.id}/pace_contexts?type=student_enrollment&page=1&per_page=10&sort=name&order=desc`
 const INIT_PACE_PROGRESS_STATUS_POLL = `/api/v1/courses/${COURSE.id}/course_pacing/new?enrollment_id=${firstStudent.item_id}`
 const INIT_SECTION_PACE_PROGRESS_STATUS_POLL = `/api/v1/courses/${COURSE.id}/course_pacing/new?course_section_id=${secondSection.item_id}`
+const COURSE_REPORT_LAST_API = `/api/v1/courses/${COURSE.id}/reports/course_pace_docx`
 
 const MINUTE = 1000 * 60
 const HOUR = MINUTE * 60
@@ -84,6 +85,7 @@ describe('PaceContextsContent', () => {
     fetchMock.get(STUDENT_CONTEXTS_API, PACE_CONTEXTS_STUDENTS_RESPONSE)
     fetchMock.get(SEARCH_SECTION_CONTEXTS_API, PACE_CONTEXTS_SECTIONS_SEARCH_RESPONSE)
     fetchMock.get(SECTION_PACE_CREATION_API, {course_pace: {}, progress: null})
+    fetchMock.get(COURSE_REPORT_LAST_API, {})
     jest.clearAllMocks()
   })
 
@@ -423,6 +425,51 @@ describe('PaceContextsContent', () => {
         const {queryByTestId} = renderConnected(<PaceContent />, state)
 
         expect(await queryByTestId(`select-all-paces-checkbox`)).not.toBeInTheDocument()
+      })
+    })
+
+    describe('when course_pace_download_document feature is disabled', () => {
+      beforeAll(() => {
+        window.ENV.FEATURES ||= {}
+        window.ENV.FEATURES.course_paces_redesign = true
+        window.ENV.FEATURES.course_pace_download_document = false
+      })
+
+      it('does not render download button', async () => {
+        const paceContextsState: PaceContextsState = {
+          ...DEFAULT_STORE_STATE.paceContexts,
+        }
+        const state = {...DEFAULT_STORE_STATE, paceContexts: paceContextsState}
+        const {queryByTestId} = renderConnected(<PaceContent />, state)
+
+        expect(await queryByTestId(`download-selected-button`)).not.toBeInTheDocument()
+      })
+
+      it('does not render select all checkbox', async () => {
+        const paceContextsState: PaceContextsState = {
+          ...DEFAULT_STORE_STATE.paceContexts,
+        }
+        const state = {...DEFAULT_STORE_STATE, paceContexts: paceContextsState}
+        const {queryByTestId} = renderConnected(<PaceContent />, state)
+
+        expect(await queryByTestId(`select-all-paces-checkbox`)).not.toBeInTheDocument()
+      })
+    })
+    describe('when course_pace_allow_bulk_pace_assign feature is disabled', () => {
+      beforeAll(() => {
+        window.ENV.FEATURES ||= {}
+        window.ENV.FEATURES.course_paces_redesign = true
+        window.ENV.FEATURES.course_pace_allow_bulk_pace_assign = false
+      })
+
+      it('does not render the bulk edit button button', async () => {
+        const paceContextsState: PaceContextsState = {
+          ...DEFAULT_STORE_STATE.paceContexts,
+        }
+        const state = {...DEFAULT_STORE_STATE, paceContexts: paceContextsState}
+        const {queryByTestId} = renderConnected(<PaceContent />, state)
+
+        expect(await queryByTestId(`bulk-edit-student-paces-button`)).not.toBeInTheDocument()
       })
     })
   })

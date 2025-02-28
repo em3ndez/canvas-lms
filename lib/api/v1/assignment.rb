@@ -242,7 +242,7 @@ module Api::V1::Assignment
       hash["description"] = description
     end
 
-    can_manage = assignment.context.grants_any_right?(user, :manage, :manage_grades, :manage_assignments, :manage_assignments_edit)
+    can_manage = assignment.context.grants_any_right?(user, :manage, :manage_grades, :manage_assignments_edit)
     hash["muted"] = assignment.muted?
     hash["html_url"] = course_assignment_url(assignment.context_id, assignment)
     if can_manage
@@ -618,7 +618,7 @@ module Api::V1::Assignment
     prepared_update = prepare_assignment_create_or_update(assignment, assignment_params, user, context)
     return false unless prepared_update[:valid]
 
-    if !(assignment_params["due_at"]).nil? && assignment["only_visible_to_overrides"]
+    if !assignment_params["due_at"].nil? && assignment["only_visible_to_overrides"]
       assignment["only_visible_to_overrides"] = false
     end
 

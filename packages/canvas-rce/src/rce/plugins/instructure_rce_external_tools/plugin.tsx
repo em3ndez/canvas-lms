@@ -19,17 +19,14 @@
 import tinymce from 'tinymce'
 
 import React from 'react'
-import {createRoot} from 'react-dom/client'
-import {
-  RceToolWrapper,
-  buildToolMenuItems,
-  ExternalToolMenuItem,
-  externalToolsForToolbar,
-} from './RceToolWrapper'
+import ReactDOM from 'react-dom'
+import {RceToolWrapper, buildToolMenuItems, ExternalToolMenuItem} from './RceToolWrapper'
 import formatMessage from '../../../format-message'
 import {ExternalToolSelectionDialog} from './components/ExternalToolSelectionDialog/ExternalToolSelectionDialog'
 import {ensureToolDialogContainerElem} from './dialog-helper'
-import {ExternalToolsEditor, externalToolsEnvFor} from './ExternalToolsEnv'
+import {externalToolsEnvFor} from './ExternalToolsEnv'
+import {externalToolsForToolbar} from './util/externalToolsForToolbar'
+import {ExternalToolsEditor} from '../../types'
 
 // Register plugin
 tinymce.PluginManager.add('instructure_rce_external_tools', initExternalToolsLocalPlugin)
@@ -105,14 +102,16 @@ function openToolSelectionDialog(editor: ExternalToolsEditor) {
   const availableTools = RceToolWrapper.forEditorEnv(externalToolsEnvFor(editor))
 
   const container = ensureToolDialogContainerElem()
-  const root = createRoot(container)
 
   const handleDismiss = () => {
-    root.unmount()
+    ReactDOM.unmountComponentAtNode(container)
     editor.focus()
   }
 
-  root.render(<ExternalToolSelectionDialog onDismiss={handleDismiss} ltiButtons={availableTools} />)
+  ReactDOM.render(
+    <ExternalToolSelectionDialog onDismiss={handleDismiss} ltiButtons={availableTools} />,
+    ensureToolDialogContainerElem(),
+  )
 }
 
 function makeViewAllItem(editor: ExternalToolsEditor): ExternalToolMenuItem {

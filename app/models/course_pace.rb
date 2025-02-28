@@ -57,6 +57,8 @@ class CoursePace < ActiveRecord::Base
   scope :section_paces, -> { where.not(course_section_id: nil) }
   scope :student_enrollment_paces, -> { where.not(user_id: nil) }
 
+  serialize :assignments_weighting
+
   workflow do
     state :unpublished
     state :active
@@ -170,6 +172,8 @@ class CoursePace < ActiveRecord::Base
               content_tag = course_pace_module_item.module_item
               assignment = content_tag.assignment
               next unless assignment
+              next if assignment.only_visible_to_overrides
+              next if assignment.assignment_overrides.active.find_by(set_type: AssignmentOverride::SET_TYPE_NOOP, set_id: AssignmentOverride::NOOP_MASTERY_PATHS)
 
               due_at = CanvasTime.fancy_midnight(dates[course_pace_module_item.id].in_time_zone).utc
               user_id = enrollment.user_id
@@ -456,5 +460,36 @@ class CoursePace < ActiveRecord::Base
     return root_account.feature_enabled?(:course_paces_skip_selected_days) if root_account
 
     course.root_account.feature_enabled?(:course_paces_skip_selected_days)
+  end
+
+  def self.pace_for_context(course, context, exact: false)
+    # Determines the pace for a given context
+    case context
+    when Course
+      context.course_paces.primary.published.take ||
+        context.course_paces.primary.not_deleted.take
+    when CourseSection
+      if exact
+        course.course_paces.for_section(context).published.take ||
+          course.course_paces.for_section(context).not_deleted.take
+      else
+        course.course_paces.for_section(context).published.take ||
+          course.course_paces.for_section(context).not_deleted.take ||
+          course.course_paces.primary.published.take ||
+          course.course_paces.primary.not_deleted.take
+      end
+    when Enrollment
+      if exact
+        course.course_paces.for_user(context.user).published.take ||
+          course.course_paces.for_user(context.user).not_deleted.take
+      else
+        course.course_paces.for_user(context.user).published.take ||
+          course.course_paces.for_user(context.user).not_deleted.take ||
+          course.course_paces.for_section(context.course_section).published.take ||
+          course.course_paces.for_section(context.course_section).not_deleted.take ||
+          course.course_paces.primary.published.take ||
+          course.course_paces.primary.not_deleted.take
+      end
+    end
   end
 end

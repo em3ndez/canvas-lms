@@ -66,6 +66,35 @@ export type GroupOutcome = {
   description: string
 }
 
+export interface BlueprintCourse {
+  id: number | string
+  name: string
+  enrollment_term_id: number | string
+}
+
+export interface SubAccount {
+  id: number | string
+  name: string
+}
+
+export interface Term {
+  id: number | string
+  name: string
+}
+
+export interface BlueprintCoursesData {
+  isMasterCourse: boolean
+  isChildCourse: boolean
+  accountId: number | string
+  masterCourse: BlueprintCourse
+  course: BlueprintCourse
+  subAccounts?: SubAccount[]
+  terms?: Term[]
+  canManageCourse?: boolean
+  canAutoPublishCourses?: boolean
+  itemNotificationFeatureEnabled?: boolean
+}
+
 export interface EnvCommon {
   ASSET_HOST: string
   active_brand_config_json_url: string
@@ -121,6 +150,7 @@ export interface EnvCommon {
   SETTINGS: Record<Setting, boolean>
   RAILS_ENVIRONMENT: 'development' | 'CD' | 'Beta' | 'Production' | string
   IN_PACED_COURSE: boolean
+  CONDITIONAL_RELEASE_SERVICE_ENABLED?: boolean
   PARSE_LINK_HEADER_THROW_ON_MAXLEN_EXCEEDED?: boolean
   PREFERENCES?: {
     hide_dashcard_color_overlays: boolean
@@ -233,6 +263,8 @@ export interface EnvCommon {
    * and ui/shared/trays/react/ContentTypeExternalToolDrawer.tsx
    */
   top_navigation_tools: Tool[]
+
+  BLUEPRINT_COURSES_DATA: BlueprintCoursesData | undefined
 }
 
 /**
@@ -243,14 +275,10 @@ export type SiteAdminFeatureId =
   | 'account_level_blackout_dates'
   | 'course_paces_for_students'
   | 'course_paces_redesign'
-  | 'selective_release_ui_api'
-  | 'assign_to_improved_search'
   | 'enhanced_course_creation_account_fetching'
   | 'explicit_latex_typesetting'
-  | 'featured_help_links'
   | 'instui_for_import_page'
   | 'instui_nav'
-  | 'media_links_use_attachment_id'
   | 'multiselect_gradebook_filters'
   | 'permanent_page_links'
   | 'render_both_to_do_lists'
@@ -259,6 +287,7 @@ export type SiteAdminFeatureId =
   | 'courses_popout_sisid'
   | 'dashboard_graphql_integration'
   | 'speedgrader_studio_media_capture'
+  | 'validate_call_to_action'
 
 /**
  * From ApplicationController#JS_ENV_ROOT_ACCOUNT_FEATURES
@@ -270,6 +299,7 @@ export type RootAccountFeatureId =
   | 'instui_nav'
   | 'lti_deep_linking_module_index_menu_modal'
   | 'lti_registrations_next'
+  | 'lti_registrations_page'
   | 'mobile_offline_mode'
   | 'product_tours'
   | 'rce_transform_loaded_content'
@@ -283,11 +313,22 @@ export type RootAccountFeatureId =
   | 'course_paces_skip_selected_days'
   | 'course_pace_download_document'
   | 'course_pace_draft_state'
+  | 'course_pace_time_selection'
+  | 'course_pace_pacing_status_labels'
+  | 'course_pace_pacing_with_mastery_paths'
+  | 'modules_requirements_allow_percentage'
+  | 'lti_asset_processor'
+  | 'discussion_checkpoints'
+  | 'course_pace_weighted_assignments'
+  | 'course_pace_allow_bulk_pace_assign'
 
 /**
  * From ApplicationController#JS_ENV_BRAND_ACCOUNT_FEATURES
  */
-export type BrandAccountFeatureId = 'embedded_release_notes' | 'consolidated_media_player'
+export type BrandAccountFeatureId =
+  | 'embedded_release_notes'
+  | 'consolidated_media_player'
+  | 'discussions_speedgrader_revisit'
 
 /**
  * Feature id exported in ApplicationController that aren't mentioned in

@@ -15,15 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License along
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-import React, {useCallback, useEffect, useRef, useState} from 'react'
+import React, {CSSProperties, useCallback, useEffect, useRef, useState} from 'react'
 import {useScope as createI18nScope} from '@canvas/i18n'
 import {LoadingIndicator, sizeMediaPlayer} from '@instructure/canvas-media'
-import {StudioPlayer} from '@instructure/studio-player'
+import {CaptionMetaData, StudioPlayer} from '@instructure/studio-player'
 import {Alert} from '@instructure/ui-alerts'
 import {Flex} from '@instructure/ui-flex'
 import {Spinner} from '@instructure/ui-spinner'
 import {asJson, defaultFetchOptions} from '@canvas/util/xhr'
 import {type GlobalEnv} from '@canvas/global/env/GlobalEnv.d'
+import {type MediaTrack} from 'api'
 
 declare const ENV: GlobalEnv & {
   locale?: string
@@ -48,13 +49,15 @@ interface CanvasStudioPlayerProps {
   media_id: string
   // TODO: we've asked studio to export definitions for PlayerSrc and CaptionMetaData
   media_sources?: any[]
-  media_tracks?: any[]
+  media_tracks?: MediaTrack[]
   type?: 'audio' | 'video'
   MAX_RETRY_ATTEMPTS?: number
   SHOW_BE_PATIENT_MSG_AFTER_ATTEMPTS?: number
   aria_label?: string
   is_attachment?: boolean
   attachment_id?: string
+  show_loader?: boolean
+  maxHeight?: null | string
 }
 
 // The main difference between CanvasMediaPlayer and CanvasStudioPlayer
@@ -63,32 +66,34 @@ interface CanvasStudioPlayerProps {
 export default function CanvasStudioPlayer({
   media_id,
   media_sources = [],
-  media_tracks,
+  media_tracks: media_captions,
   type = 'video',
   MAX_RETRY_ATTEMPTS = DEFAULT_MAX_RETRY_ATTEMPTS,
   SHOW_BE_PATIENT_MSG_AFTER_ATTEMPTS = DEFAULT_SHOW_BE_PATIENT_MSG_AFTER_ATTEMPTS,
   aria_label = '',
   is_attachment = false,
   attachment_id = '',
+  show_loader = false,
+  maxHeight = null
 }: CanvasStudioPlayerProps) {
   const sorted_sources = Array.isArray(media_sources)
     ? media_sources.sort(byBitrate)
     : media_sources
-  const tracks = Array.isArray(media_tracks)
-    ? media_tracks.map(t => ({
-        locale: t.language,
-        language: t.label,
-        inherited: t.inherited,
-        label: t.label,
-        src: t.src,
+  const captions: CaptionMetaData[] | undefined = Array.isArray(media_captions)
+    ? media_captions.map(t => ({
+        src: t.src || '',
+        label: t.label || '',
+        language: t.language || '',
+        type: t.type === 'vtt' ? 'vtt' : 'srt',
       }))
     : undefined
   const [mediaSources, setMediaSources] = useState(sorted_sources)
-  const [mediaTracks] = useState(tracks)
+  const [mediaCaptions] = useState(captions)
   const [retryAttempt, setRetryAttempt] = useState(0)
   const [mediaObjNetworkErr, setMediaObjNetworkErr] = useState(null)
   const [containerWidth, setContainerWidth] = useState(0)
   const [containerHeight, setContainerHeight] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
   // the ability to set these makes testing easier
   // hint: set these values in a conditional breakpoint in
   // media_player_iframe_content.js where the CanvasStudioPlayer is rendered
@@ -100,14 +105,15 @@ export default function CanvasStudioPlayer({
 
   const containerRef = useRef<any>(null)
 
+  function isEmbedded(): boolean {
+    return window.frameElement?.tagName === 'IFRAME' ||
+           window.location !== window?.top?.location ||
+           !containerRef.current
+  }
+
   const boundingBox = useCallback(() => {
-    // @ts-expect-error
     const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement
-    const isEmbedded =
-      window.frameElement?.tagName === 'IFRAME' ||
-      window.location !== window?.top?.location ||
-      !containerRef.current
-    if (isFullscreen || isEmbedded) {
+    if (isFullscreen || isEmbedded()) {
       return {
         width: window.innerWidth,
         height: window.innerHeight,
@@ -123,12 +129,25 @@ export default function CanvasStudioPlayer({
 
   const handlePlayerSize = useCallback(
     (_event: any) => {
-      const player = window.document.body.querySelector('video')
-      const {width, height} = sizeMediaPlayer(player, type, boundingBox())
-      setContainerHeight(height)
-      setContainerWidth(width)
+      const updateContainerSize = (width: number, height: number) => {
+        setContainerWidth(width)
+        setContainerHeight(height)
+      }
+
+      const boundingBoxDimensions = boundingBox()
+
+      if (isEmbedded()) {
+        updateContainerSize(boundingBoxDimensions.width, boundingBoxDimensions.height)
+      } else if (mediaSources.length) {
+        const player = {
+          videoHeight: mediaSources[0].height,
+          videoWidth: mediaSources[0].width,
+        }
+        const { width, height } = sizeMediaPlayer(player, type, boundingBoxDimensions)
+        updateContainerSize(width, height)
+      }
     },
-    [type, boundingBox],
+    [type, boundingBox, mediaSources],
   )
 
   const fetchSources = useCallback(
@@ -138,15 +157,18 @@ export default function CanvasStudioPlayer({
         : `/media_objects/${media_id}/info`
       let resp
       try {
+        setIsLoading(true)
         setMediaObjNetworkErr(null)
         resp = await asJson(fetch(url, defaultFetchOptions()))
       } catch (e: any) {
         console.warn(`Error getting ${url}`, e.message)
         setMediaObjNetworkErr(e)
+        setIsLoading(false)
         return
       }
       if (resp?.media_sources?.length) {
         setMediaSources(resp.media_sources.sort(byBitrate))
+        setIsLoading(false)
       } else {
         setRetryAttempt(retryAttempt + 1)
       }
@@ -183,7 +205,6 @@ export default function CanvasStudioPlayer({
   }, [handlePlayerSize])
 
   const includeFullscreen =
-    // @ts-expect-error
     (document.fullscreenEnabled || document.webkitFullscreenEnabled) && type === 'video'
 
   function renderNoPlayer() {
@@ -259,34 +280,49 @@ export default function CanvasStudioPlayer({
   }
 
   useEffect(() => {
-    if (mediaSources.length) {
-      const player = {
-        videoHeight: mediaSources[0].height,
-        videoWidth: mediaSources[0].width,
-      }
-      const {width, height} = sizeMediaPlayer(player, type, boundingBox())
-      setContainerWidth(width)
-      setContainerHeight(height)
-    }
+    handlePlayerSize({})
   }, [mediaSources, type, boundingBox])
 
+  function renderLoader(){
+    if (retryAttempt >= showBePatientMsgAfterAttempts){
+      setIsLoading(false)
+      return
+    }
+    return <Spinner renderTitle={I18n.t('Loading media')} size="small" margin="small"/>
+  }
+
+  const containerStyle: Partial<CSSProperties> = {
+    height: containerHeight,
+    width: containerWidth
+  }
+
+  if (maxHeight) {
+    containerStyle.maxHeight = maxHeight
+  }
+
   return (
-    <div
-      style={{height: containerHeight, width: containerWidth}}
-      ref={containerRef}
-      data-tracks={JSON.stringify(mediaTracks)}
-    >
-      {mediaSources.length ? (
-        <StudioPlayer
-          src={mediaSources}
-          captions={mediaTracks}
-          hideFullScreen={!includeFullscreen}
-          title={getAriaLabel()}
-        />
+    <>
+      {isLoading && show_loader ? (
+        renderLoader()
       ) : (
-        renderNoPlayer()
+        <div
+          style={containerStyle}
+          ref={containerRef}
+          data-captions={JSON.stringify(mediaCaptions)}
+        >
+          {mediaSources.length ? (
+            <StudioPlayer
+              src={mediaSources}
+              captions={mediaCaptions}
+              hideFullScreen={!includeFullscreen}
+              title={getAriaLabel()}
+            />
+          ) : (
+            renderNoPlayer()
+          )}
+        </div>
       )}
-    </div>
+    </>
   )
 }
 

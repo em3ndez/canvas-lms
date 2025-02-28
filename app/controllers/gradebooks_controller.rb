@@ -35,6 +35,9 @@ class GradebooksController < ApplicationController
   before_action :require_context
   before_action :require_user, only: %i[speed_grader speed_grader_settings grade_summary grading_rubrics update_final_grade_overrides]
 
+  include HorizonMode
+  before_action :redirect_student_to_horizon, only: [:show, :grade_summary]
+
   include K5Mode
 
   batch_jobs_in_actions only: :update_submission, batch: { priority: Delayed::LOW_PRIORITY }
@@ -534,7 +537,7 @@ class GradebooksController < ApplicationController
       gradebook_column_size_settings_url: change_gradebook_column_size_course_gradebook_url,
       gradebook_csv_progress: last_exported_gradebook_csv.try(:progress),
       gradebook_score_to_ungraded_progress: last_score_to_ungraded,
-      gradebook_import_url: new_course_gradebook_upload_path(@context),
+      gradebook_import_url: course_gradebook_uploads_path(@context),
       gradebook_is_editable:,
       grade_calc_ignore_unposted_anonymous_enabled: root_account.feature_enabled?(:grade_calc_ignore_unposted_anonymous),
       graded_late_submissions_exist:,
@@ -709,7 +712,7 @@ class GradebooksController < ApplicationController
       gradebook_column_size_settings: gradebook_column_size_preferences,
       gradebook_column_size_settings_url: change_gradebook_column_size_course_gradebook_url,
       gradebook_csv_progress: last_exported_gradebook_csv.try(:progress),
-      gradebook_import_url: new_course_gradebook_upload_path(@context),
+      gradebook_import_url: course_gradebook_uploads_path(@context),
       gradebook_is_editable:,
       grade_calc_ignore_unposted_anonymous_enabled: root_account.feature_enabled?(:grade_calc_ignore_unposted_anonymous),
       graded_late_submissions_exist:,
@@ -934,14 +937,6 @@ class GradebooksController < ApplicationController
               location: course_gradebook_url(@assignment.context)
             )
           end
-          format.text do
-            render(
-              json: submissions_json(submissions: @submissions, assignments:),
-              status: :created,
-              location: course_gradebook_url(@assignment.context),
-              as_text: true
-            )
-          end
         else
           error_message = error&.to_s
           flash[:error] = t(
@@ -956,7 +951,6 @@ class GradebooksController < ApplicationController
 
           format.html { render :show, course_id: @assignment.context.id }
           format.json { render json: { errors: error_json }, status: request_error_status }
-          format.text { render json: { errors: error_json }, status: request_error_status }
         end
       end
     end
@@ -1450,11 +1444,11 @@ class GradebooksController < ApplicationController
   def platform_service_speedgrader_enabled?(params)
     return false unless @context.feature_enabled?(:platform_service_speedgrader)
 
-    # SGP is currently disabled for moderated and anonymously graded assignments
     if @assignment.present?
-      return false if @assignment.moderated_grading
-      return false if @assignment.anonymous_grading
+      return false if @assignment.unsupported_in_speedgrader_2?
     end
+
+    return false if Services::PlatformServiceSpeedgrader.launch_url.blank?
 
     params[:platform_sg].nil? || value_to_boolean(params[:platform_sg])
   end

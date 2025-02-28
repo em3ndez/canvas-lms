@@ -71,16 +71,11 @@ module Schemas
         .with_indifferent_access.compact
     end
 
-    def schema
-      self.class.schema
-    end
-
     def self.schema
       {
         type: "object",
         required: %w[
           title
-          description
           target_link_uri
           oidc_initiation_url
           redirect_uris
@@ -101,7 +96,7 @@ module Schemas
           placements: placements_schema,
           # vendor_extensions: extensions with platform != "canvas.instructure.com", only currently copied during content migration. not present on 1.3 tools.
         }
-      }.freeze
+      }
     end
 
     def self.allowed_base_properties

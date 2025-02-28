@@ -16,39 +16,31 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useContext, useMemo, useState} from 'react'
+import React, {forwardRef, useContext, useImperativeHandle, useMemo, useState} from 'react'
 import CanvasMultiSelect from '@canvas/multi-select/react'
 import {View} from '@instructure/ui-view'
 import {DiscussionManagerUtilityContext} from '../../utils/constants'
 import {useScope as createI18nScope} from '@canvas/i18n'
-import PropTypes from '@canvas/permissions/react/propTypes'
+import PropTypes from 'prop-types'
 
 const I18n = createI18nScope('discussion_posts')
 
-// TODO: Translate the language co> ntrols into the canvas target locale.
-export const TranslationControls = props => {
-  const {translationLanguages, setTranslateTargetLanguage} = useContext(
+export const TranslationControls = forwardRef((props, ref) => {
+  const {translationLanguages} = useContext(
     DiscussionManagerUtilityContext,
   )
-  const [input, setInput] = useState(translationLanguages.current?.[0]?.name || '')
-  const [selected, setSelected] = useState(null)
+  const [input, setInput] = useState('')
 
   const handleSelect = selectedArray => {
     const id = selectedArray[0]
     const result = translationLanguages.current.find(({id: _id}) => id === _id)
 
-    if (!result) {
-      return
-    }
+    //TODO: Somehow trigger this function if not valid item is selected
 
+    props.onSetIsLanguageNotSelectedError(false)
+    props.onSetIsLanguageAlreadyActiveError(false)
+    props.onSetSelectedLanguage(result.id)
     setInput(result.name)
-    setSelected(result.id)
-
-    if (props.setTranslationLanguage) {
-      props.setTranslationLanguage(result.id)
-    } else {
-      setTranslateTargetLanguage(result.id)
-    }
   }
 
   const filteredLanguages = useMemo(() => {
@@ -61,25 +53,53 @@ export const TranslationControls = props => {
     )
   }, [translationLanguages, input])
 
+  const reset = () => {
+    setInput('')
+    props.onSetSelectedLanguage(null)
+  }
+
+  useImperativeHandle(ref, () => ({
+    reset,
+  }))
+
+  const messages = []
+
+  if (props.isLanguageNotSelectedError) {
+    messages.push({type: 'error', text: I18n.t('Please select a language.')})
+  } else if (props.isLanguageAlreadyActiveError) {
+    messages.push({type: 'error', text: I18n.t('Already translated into the selected language.')})
+  }
+
   return (
-    <View as="div" margin="x-small 0 0">
+    <View ref={ref} as="div">
       <CanvasMultiSelect
-        label={I18n.t('Translate to')}
+        // I couldn't make it work to align the select with the buttons next to it if there's a label
+        // So I put the label outside the container as a separate Text element
+        // If you know a way to make it work, please do it
+        label=""
+        aria-labelledby="translate-select-label"
         onChange={handleSelect}
         inputValue={input}
         onInputChange={e => setInput(e.target.value)}
         width="360px"
+        placeholder={I18n.t('Select a language...')}
+        messages={messages}
       >
         {filteredLanguages.map(({id, name}) => (
-          <CanvasMultiSelect.Option key={id} id={id} value={id} isSelected={id === selected}>
+          <CanvasMultiSelect.Option key={id} id={id} value={id} isSelected={id === props.selectedLanguage}>
             {name}
           </CanvasMultiSelect.Option>
         ))}
       </CanvasMultiSelect>
     </View>
   )
-}
+})
 
 TranslationControls.propTypes = {
-  setTranslationLanguage: PropTypes.func,
+  selectedLanguage: PropTypes.string,
+  onSetSelectedLanguage: PropTypes.func,
+  isLanguageAlreadyActiveError: PropTypes.bool,
+  onSetIsLanguageAlreadyActiveError: PropTypes.func,
+  isLanguageNotSelectedError: PropTypes.bool,
+  onSetIsLanguageNotSelectedError: PropTypes.func,
 }

@@ -22,6 +22,10 @@ class AnnouncementsController < ApplicationController
   include Api::V1::DiscussionTopics
 
   before_action :require_context, except: :public_feed
+
+  include HorizonMode
+  before_action :redirect_student_to_horizon, only: [:index, :show]
+
   before_action { |c| c.active_tab = "announcements" }
 
   include K5Mode
@@ -35,8 +39,8 @@ class AnnouncementsController < ApplicationController
 
     def load_announcements
       can_create = @context.announcements.temp_record.grants_right?(@current_user, session, :create)
-      can_edit = @context.grants_any_right?(@current_user, session, :manage_content, :manage_course_content_edit)
-      can_delete = @context.grants_any_right?(@current_user, session, :manage_content, :manage_course_content_delete)
+      can_edit = @context.grants_right?(@current_user, session, :manage_course_content_edit)
+      can_delete = @context.grants_right?(@current_user, session, :manage_course_content_delete)
 
       js_env permissions: {
         create: can_create,

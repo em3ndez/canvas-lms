@@ -22,6 +22,8 @@ import type {BlackoutDate} from '../../shared/types'
 import {weekendIntegers} from '../../shared/api/backend_serializer'
 import * as tz from '@instructure/moment-utils'
 import {useScope as createI18nScope} from '@canvas/i18n'
+import {START_DATE_CAPTIONS, END_DATE_CAPTIONS} from '../../../constants'
+import { CoursePace, OptionalDate, Pace } from '../../types'
 
 const I18n = createI18nScope('course_paces_app')
 
@@ -48,8 +50,16 @@ export const daysBetween = (
   blackoutDates: BlackoutDate[] = [],
   inclusiveEnd = true,
 ): number => {
-  const startDate = moment(start).endOf('day')
-  const endDate = moment(end).endOf('day')
+  let startDate
+  let endDate
+
+  if (window.ENV.FEATURES.course_pace_time_selection) {
+    startDate = moment(start).utc().endOf('day')
+    endDate = moment(end).utc().endOf('day')
+  } else {
+    startDate = moment(start).endOf('day')
+    endDate = moment(end).endOf('day')
+  }
 
   if (inclusiveEnd) {
     endDate.endOf('day').add(1, 'day')
@@ -177,4 +187,61 @@ export const formatTimeAgoDate = date => {
     return I18n.t({one: '1 week ago', other: '%{count} weeks ago'}, {count: weeks})
   }
   return tz.format(date, 'date.formats.long')
+}
+
+export const getEndDateValue = (coursePace: CoursePace, plannedEndDate: OptionalDate) => {
+  const enrollmentType = coursePace.context_type === 'Enrollment'
+
+  if (enrollmentType) {
+    if (window.ENV.FEATURES.course_paces_for_students) {
+      return coursePace.end_date || plannedEndDate
+    } else {
+      return plannedEndDate
+    }
+  } else {
+    return coursePace.end_date_context === 'hypothetical' ? plannedEndDate : coursePace.end_date
+  }
+}
+
+const getStartDateCaption = (startDateValue: OptionalDate, coursePace: CoursePace, contextType: string) => {
+  if (startDateValue && coursePace.start_date_context !== 'hypothetical') {
+
+    const contextTypeValue: string = contextType === 'enrollment' && window.ENV.FEATURES.course_pace_time_selection 
+      ? 'enrollment_time_selection'
+      : contextType
+
+    // @ts-expect-error
+    return START_DATE_CAPTIONS[contextTypeValue]
+  }
+  return START_DATE_CAPTIONS.empty
+}
+
+const getEndDateCaption = (endDateValue: OptionalDate, coursePace: CoursePace, contextType: string) => {
+  if (endDateValue && coursePace.end_date_context !== 'hypothetical') {
+    // @ts-expect-error
+    return END_DATE_CAPTIONS[contextType]
+  }
+  return END_DATE_CAPTIONS.empty
+}
+
+export const generateDatesCaptions = (
+  coursePace: CoursePace,
+  startDateValue: OptionalDate,
+  endDateValue: OptionalDate,
+  appliedPace: Pace
+) => {
+  const contextType = coursePace.context_type.toLocaleLowerCase()
+  const captions = { startDate: START_DATE_CAPTIONS.empty, endDate: END_DATE_CAPTIONS.empty }
+  captions.startDate = getStartDateCaption(startDateValue, coursePace, contextType)
+
+  if (contextType === 'enrollment') {
+    const appliedPaceContextType = appliedPace?.type.toLocaleLowerCase()
+    const paceType = ['course', 'section'].includes(appliedPaceContextType)
+      ? appliedPaceContextType
+      : 'default'
+    captions.endDate = getEndDateCaption(endDateValue, coursePace, paceType)
+    return captions
+  }
+  captions.endDate = getEndDateCaption(endDateValue, coursePace, contextType)
+  return captions
 }

@@ -17,19 +17,21 @@
  */
 
 import React from 'react'
-import {connect} from 'react-redux'
-
-import {Flex} from '@instructure/ui-flex'
-import {useScope as createI18nScope} from '@canvas/i18n'
-import {View} from '@instructure/ui-view'
-import type {CoursePace, PaceContext, Section, StoreState} from '../../types'
-import {Text} from '@instructure/ui-text'
-import {Pill} from '@instructure/ui-pill'
-import {IconUserSolid} from '@instructure/ui-icons'
-import {getBlueprintLocked} from '../../reducers/ui'
-import {getIsDraftPace} from '../../reducers/course_paces'
+import { connect } from 'react-redux'
+import {actions} from '../../actions/ui'
+import type {Dispatch} from 'redux'
+import { Flex } from '@instructure/ui-flex'
+import { useScope as createI18nScope } from '@canvas/i18n'
+import { View } from '@instructure/ui-view'
+import type { CoursePace, PaceContext, Section, StoreState } from '../../types'
+import { Text } from '@instructure/ui-text'
+import { IconEditLine, IconUserSolid } from '@instructure/ui-icons'
+import { getBlueprintLocked } from '../../reducers/ui'
 import Settings from '../header/settings/settings'
 import BlueprintLock from '../header/blueprint_lock'
+import CourseStats from './CourseStats'
+import {isBulkEnrollment, getSelectedBulkStudents} from '../../reducers/pace_contexts'
+import {Link} from '@instructure/ui-link'
 
 const I18n = createI18nScope('course_paces_modal')
 
@@ -42,7 +44,13 @@ interface Props {
 
 interface StoreProps {
   readonly blueprintLocked: boolean | undefined
-  readonly isDraftPace: boolean
+  readonly isBulkEnrollment: boolean
+  readonly selectedBulkStudents: string[]
+}
+
+interface DispatchProps {
+  readonly hidePaceModal: typeof actions.hidePaceModal
+  readonly showBulkEditModal: typeof actions.openBulkEditModal
 }
 
 const PaceModalHeading = ({
@@ -51,8 +59,11 @@ const PaceModalHeading = ({
   paceContext,
   enrolledSection,
   blueprintLocked,
-  isDraftPace,
-}: Props & StoreProps) => {
+  isBulkEnrollment,
+  selectedBulkStudents,
+  hidePaceModal,
+  showBulkEditModal
+}: Props & StoreProps & DispatchProps) => {
   const renderPaceInfo = () => {
     if (['Section', 'Course'].includes(coursePace.context_type)) {
       return (
@@ -75,6 +86,9 @@ const PaceModalHeading = ({
   }
 
   const getPaceName = () => {
+    if(isBulkEnrollment)
+    return null
+
     if (['Section', 'Course'].includes(coursePace.context_type)) return contextName
     return enrolledSection.name
   }
@@ -90,7 +104,13 @@ const PaceModalHeading = ({
     }
   }
 
+  const handleEditStudents = () => {
+    hidePaceModal()
+    showBulkEditModal(selectedBulkStudents)
+  }
+
   const renderDetails = () => {
+
     return (
       <>
         <Text tabIndex={0} data-testid="pace-type" as="div" size="medium" weight="bold">
@@ -99,17 +119,26 @@ const PaceModalHeading = ({
         <Text data-testid="section-name" as="div" size="x-large" weight="bold">
           {getPaceName()}
         </Text>
-        {isDraftPace ? (
-          <Pill data-testid="draft-pace-status-pill" margin="small 0" statusLabel="Status">
-            Draft
-          </Pill>
-        ) : null}
-        <Flex as="div" margin="medium none">
-          <IconUserSolid size="medium" />
-          <View data-testid="pace-info" as="div" margin="none small">
-            {renderPaceInfo()}
-          </View>
-        </Flex>
+        {(window.ENV.FEATURES.course_pace_time_selection) ? 
+          <CourseStats paceContext={paceContext} />
+          :(<Flex as="div" margin="medium none">
+            <IconUserSolid size="medium" />
+            <View data-testid="pace-info" as="div" margin="none small">
+              {renderPaceInfo()}
+            </View>
+          </Flex>)}
+          {
+            isBulkEnrollment && (
+              <Link
+                id="edit-bulk-pace-students"
+                isWithinText={false}
+                onClick={handleEditStudents}
+                margin="xxx-small none"
+              >
+                <IconEditLine /> {I18n.t('Edit Students')}
+              </Link>
+            )
+          }
       </>
     )
   }
@@ -128,8 +157,14 @@ const PaceModalHeading = ({
 const mapStateToProps = (state: StoreState): StoreProps => {
   return {
     blueprintLocked: getBlueprintLocked(state),
-    isDraftPace: getIsDraftPace(state),
+    isBulkEnrollment: isBulkEnrollment(state),
+    selectedBulkStudents: getSelectedBulkStudents(state)
   }
 }
 
-export default connect(mapStateToProps)(PaceModalHeading)
+const mapDispatchToProps = (dispatch: Dispatch): DispatchProps => ({
+  hidePaceModal: () => dispatch(actions.hidePaceModal()),
+  showBulkEditModal: (students: string[]) => dispatch(actions.openBulkEditModal(students)),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(PaceModalHeading)

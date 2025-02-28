@@ -26,9 +26,7 @@ describe "ZipPackage" do
     end
   end
 
-  def create_key(obj)
-    CC::CCHelper.create_key(obj)
-  end
+  delegate :create_key, to: :"CC::CCHelper"
 
   before :once do
     course_with_student(active_all: true)
@@ -1011,7 +1009,7 @@ describe "ZipPackage" do
           exportId: create_key(survey),
           title: "Survey 1",
           type: "Quizzes::Quiz",
-          content: "<img src=\"viewer/files/cn_image.jpg\">",
+          content: %(<img src="viewer/files/cn_image.jpg" loading="lazy">),
           assignmentExportId: create_key(survey.assignment),
           questionCount: 0,
           timeLimit: nil,
@@ -1081,7 +1079,7 @@ describe "ZipPackage" do
           exportId: create_key(disc),
           title: "Discussion 1",
           type: "DiscussionTopic",
-          content: "<img src=\"viewer/files/folder%231/cn_image.jpg\">",
+          content: %(<img src="viewer/files/folder%231/cn_image.jpg" loading="lazy">),
           lockAt: nil,
           unlockAt: nil,
           graded: false

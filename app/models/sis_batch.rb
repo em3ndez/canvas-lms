@@ -30,7 +30,7 @@ class SisBatch < ActiveRecord::Base
   belongs_to :errors_attachment, class_name: "Attachment"
   has_many :parallel_importers, inverse_of: :sis_batch
   has_many :sis_batch_errors, inverse_of: :sis_batch, autosave: false
-  has_many :roll_back_data, inverse_of: :sis_batch, class_name: "SisBatchRollBackData", autosave: false
+  has_many :roll_back_data, inverse_of: :sis_batch, class_name: "SisBatchRollBackData", autosave: false, dependent: :destroy
   has_many :progresses, inverse_of: :sis_batch
   belongs_to :generated_diff, class_name: "Attachment"
   belongs_to :batch_mode_term, class_name: "EnrollmentTerm"
@@ -879,6 +879,7 @@ class SisBatch < ActiveRecord::Base
               ids = type.constantize.connection.select_values(restore_sql(type, data.map(&:to_restore_array)))
               capture_ids_for_post_processing(type, ids)
               finalize_enrollments(ids) if type == "Enrollment"
+              restore_assignment_overrides(ids) if type == "AssignmentOverrideStudent"
               count += update_restore_progress(restore_progress, data, count, total)
             else
               # try to restore each row one at a time
@@ -897,6 +898,7 @@ class SisBatch < ActiveRecord::Base
 
               capture_ids_for_post_processing(type, successful_ids)
               finalize_enrollments(successful_ids) if type == "Enrollment"
+              restore_assignment_overrides(ids) if type == "AssignmentOverrideStudent"
               count += update_restore_progress(restore_progress, data - failed_data, count, total)
               roll_back_data.active.where(id: failed_data).update_all(workflow_state: "failed", updated_at: Time.zone.now)
             end
@@ -920,12 +922,18 @@ class SisBatch < ActiveRecord::Base
     end
   end
 
+  def restore_assignment_overrides(assignment_override_student_ids)
+    # restore assignment overrides that were deleted when the last AssignmentOverrideStudent was deleted but is now being restored
+    ao_ids = AssignmentOverrideStudent.where(id: assignment_override_student_ids).distinct.pluck(:assignment_override_id)
+    AssignmentOverride.where(workflow_state: "deleted", id: ao_ids).update_all(workflow_state: "active", updated_at: Time.now.utc)
+  end
+
   def restore_states_later(batch_mode: nil, undelete_only: false, unconclude_only: false)
     shard.activate do
       restore_progress = Progress.create! context: self, tag: "sis_batch_state_restore", completion: 0.0
       restore_progress.process_job(self,
                                    :restore_states_for_batch,
-                                   { n_strand: ["restore_states_for_batch", account.global_id] },
+                                   { n_strand: ["restore_states_for_batch", account.global_id], max_attempts: 3 },
                                    batch_mode:,
                                    undelete_only:,
                                    unconclude_only:)

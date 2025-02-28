@@ -19,9 +19,6 @@
 import React from 'react'
 import {createRoot} from 'react-dom/client'
 import formatMessage from '../format-message'
-
-// Map to store root instances for each loading image
-const loadingImageRoots = new WeakMap()
 import {Spinner} from '@instructure/ui-spinner'
 import {getData, setData} from './jqueryish_funcs'
 
@@ -105,7 +102,6 @@ export function showLoadingImage($link, position = 'adjacent') {
   }
   const root = createRoot($imageHolder)
   root.render(<Spinner size="x-small" renderTitle={formatMessage('Loading')} />)
-  loadingImageRoots.set($imageHolder, root)
   return $link
 }
 
@@ -114,10 +110,9 @@ export function removeLoadingImage($link) {
   const list = getData($link, 'loading_images') || []
   list.forEach(item => {
     if (item) {
-      const root = loadingImageRoots.get(item)
+      const root = item._reactRoot
       if (root) {
         root.unmount()
-        loadingImageRoots.delete(item)
       }
       item.remove()
     }
@@ -226,7 +221,7 @@ export function loadDocPreview($container, options) {
         }
       }
       showLoadingImage($container, 'centered')
-       
+
       fetch(url)
         .then(response => {
           if (!response.ok) throw new Error(`${response.status}: ${response.statusText}`)
@@ -240,7 +235,6 @@ export function loadDocPreview($container, options) {
           }
         })
         .catch(ex => {
-           
           console.error(ex)
         })
         .finally(() => {
@@ -270,7 +264,7 @@ export function sanitizeUrl(url) {
   const defaultUrl = 'about:blank'
   try {
     const parsedUrl = new URL(url, window.location.origin)
-     
+
     if (parsedUrl.protocol === 'javascript:') {
       return defaultUrl
     }

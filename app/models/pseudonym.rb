@@ -51,6 +51,7 @@ class Pseudonym < ActiveRecord::Base
 
   validates :unique_id, length: { maximum: MAX_UNIQUE_ID_LENGTH }
   validates :sis_user_id, length: { maximum: maximum_string_length, allow_blank: true }
+  validates :integration_id, length: { maximum: maximum_string_length, allow_blank: true }
   validates :account_id, presence: true
   validate :must_be_root_account
   # allows us to validate the user and pseudonym together, before saving either
@@ -384,11 +385,15 @@ class Pseudonym < ActiveRecord::Base
     communication_channels.each { |cc| cc.update_attribute(:workflow_state, "retired") }
   end
 
+  def invalid_email?
+    (!account || account.email_pseudonyms) &&
+      !deleted? &&
+      (unique_id.blank? ||
+        !EmailAddressValidator.valid?(unique_id))
+  end
+
   def validate_unique_id
-    if (!account || account.email_pseudonyms) &&
-       !deleted? &&
-       (unique_id.blank? ||
-       !EmailAddressValidator.valid?(unique_id))
+    if invalid_email?
       errors.add(:unique_id, "not_email")
       throw :abort
     end
@@ -696,7 +701,7 @@ class Pseudonym < ActiveRecord::Base
     Canvas::Errors.capture(e, {
                              type: :ldap,
                              message: "LDAP authentication error",
-                             object: inspect.to_s,
+                             object: inspect,
                              unique_id:,
                            })
     nil

@@ -17,7 +17,6 @@
  */
 import React, {useState} from 'react'
 import {useScope as createI18nScope} from '@canvas/i18n'
-import {useQuery} from '@canvas/query'
 import doFetchApi from '@canvas/do-fetch-api-effect'
 import {Spinner} from '@instructure/ui-spinner'
 import {Alert} from '@instructure/ui-alerts'
@@ -39,18 +38,14 @@ import PortfolioSettingsModal from './PortfolioSettingsModal'
 import {Menu} from '@instructure/ui-menu'
 import SectionEditModal from './SectionEditModal'
 import type {ePortfolio, ePortfolioSection} from './types'
+import {View} from '@instructure/ui-view'
 
 const I18n = createI18nScope('eportfolio')
 interface Props {
   readonly portfolio: ePortfolio
   readonly isOwner: boolean
-}
-
-const fetchSections = async (portfolio_id: number): Promise<ePortfolioSection[]> => {
-  const {json} = await doFetchApi<ePortfolioSection[]>({
-    path: `/eportfolios/${portfolio_id}/categories`,
-  })
-  return json ?? []
+  readonly onConfirm: () => void
+  readonly sections: ePortfolioSection[]
 }
 
 function SectionList(props: Props) {
@@ -60,28 +55,25 @@ function SectionList(props: Props) {
   const [portfolioName, setPortfolioName] = useState(props.portfolio.name)
   const [portfolioPublic, setPortfolioPublic] = useState(props.portfolio.public)
 
-  const {data, isLoading, isError, refetch} = useQuery({
-    queryKey: ['portfolioSectionList', props.portfolio.id],
-    queryFn: () => {
-      return fetchSections(props.portfolio.id)
-    },
-  })
   const onPortfolioUpdate = (name: string, isPublic: boolean) => {
     setPortfolioName(name)
     setPortfolioPublic(isPublic)
     onConfirm()
   }
+
   const onConfirm = () => {
     setModalType('')
     setSelectedSection(null)
     setIsEditPortfolio(false)
-    refetch()
+    props.onConfirm()
   }
+
   const onCancel = () => {
     setModalType('')
     setSelectedSection(null)
     setIsEditPortfolio(false)
   }
+
   const onMenuSelect = (section: ePortfolioSection, type: string) => {
     if (section != null) {
       setSelectedSection(section)
@@ -94,7 +86,7 @@ function SectionList(props: Props) {
         <SectionEditModal
           modalType={modalType}
           section={selectedSection}
-          sectionList={data ?? []}
+          sectionList={props.sections ?? []}
           onConfirm={onConfirm}
           onCancel={onCancel}
           portfolio={{...props.portfolio, name: portfolioName}}
@@ -115,7 +107,7 @@ function SectionList(props: Props) {
         </Flex>
       </Menu.Item>,
     ]
-    if (data && data.length > 1) {
+    if (props.sections && props.sections.length > 1) {
       options.push(
         <Menu.Item
           key="move"
@@ -171,17 +163,14 @@ function SectionList(props: Props) {
       </Table.Row>
     )
   }
-  if (isError) {
-    return <Alert variant="error">{I18n.t('Failed to load ePortfolio sections')}</Alert>
-  } else if (isLoading) {
-    return <Spinner size="medium" renderTitle={I18n.t('Loading ePortfolio sections')} />
-  } else {
-    return (
-      <Flex direction="column" gap="x-small">
-        <Text size="large" weight="bold">
-          {portfolioName}
-        </Text>
-        <Text>{I18n.t('Sections')}</Text>
+
+  return (
+    <Flex direction="column" gap="x-small">
+      <Text size="large" weight="bold">
+        {portfolioName}
+      </Text>
+      <Text>{I18n.t('Sections')}</Text>
+      <View display="block" overflowY="auto" maxHeight="400px">
         <div id="section_list">
           <Table
             caption={I18n.t('List of sections for %{eportfolio}', {
@@ -189,36 +178,38 @@ function SectionList(props: Props) {
             })}
           >
             <Table.Body>
-              {(data ?? []).map((section: ePortfolioSection) => {
+              {(props.sections ?? []).map((section: ePortfolioSection) => {
                 return renderSectionRow(section)
               })}
             </Table.Body>
           </Table>
         </div>
-        {props.isOwner ? (
-          <>
+      </View>
+      {props.isOwner ? (
+        <>
+          <Button
+            textAlign="start"
+            renderIcon={<IconAddFolderLine />}
+            data-testid="add-section-button"
+            onClick={() => setModalType('add')}
+          >
+            {I18n.t('Add Section')}
+          </Button>
+          <span className="portfolio_settings_link">
             <Button
+              display="block"
+              data-testid="portfolio-settings"
               textAlign="start"
-              renderIcon={<IconAddFolderLine />}
-              data-testid="add-section-button"
-              onClick={() => setModalType('add')}
+              renderIcon={<IconSettingsLine />}
+              onClick={() => setIsEditPortfolio(true)}
             >
-              {I18n.t('Add Section')}
+              {I18n.t('Settings')}
             </Button>
-            <span className="portfolio_settings_link">
-              <Button
-                display="block"
-                data-testid="portfolio-settings"
-                textAlign="start"
-                renderIcon={<IconSettingsLine />}
-                onClick={() => setIsEditPortfolio(true)}
-              >
-                {I18n.t('Settings')}
-              </Button>
-            </span>
-            {renderModal()}
-          </>
-        ) : null}
+          </span>
+          {renderModal()}
+        </>
+      ) : null}
+      {props.portfolio.profile_url !== null ? (
         <Button
           data-testid="user-profile"
           textAlign="start"
@@ -227,15 +218,15 @@ function SectionList(props: Props) {
         >
           {I18n.t('User Profile')}
         </Button>
-        {isEditPortfolio ? (
-          <PortfolioSettingsModal
-            portfolio={{...props.portfolio, name: portfolioName, public: portfolioPublic}}
-            onConfirm={(name, isPublic) => onPortfolioUpdate(name, isPublic)}
-            onCancel={onCancel}
-          />
-        ) : null}
-      </Flex>
-    )
-  }
+      ) : null}
+      {isEditPortfolio ? (
+        <PortfolioSettingsModal
+          portfolio={{...props.portfolio, name: portfolioName, public: portfolioPublic}}
+          onConfirm={(name, isPublic) => onPortfolioUpdate(name, isPublic)}
+          onCancel={onCancel}
+        />
+      ) : null}
+    </Flex>
+  )
 }
 export default SectionList

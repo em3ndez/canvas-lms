@@ -230,7 +230,7 @@ class ApplicationController < ActionController::Base
           url_for_high_contrast_tinymce_editor_css: editor_hc_css,
           current_user_id: @current_user&.id,
           current_user_global_id: @current_user&.global_id,
-          current_user_heap_id: @current_user&.heap_id(root_account: @domain_root_account),
+          current_user_uuid: @current_user&.uuid,
           current_user_roles: @current_user&.roles(@domain_root_account),
           current_user_is_student: @context.respond_to?(:user_is_student?) && @context.user_is_student?(@current_user),
           current_user_types: @current_user.try { |u| u.account_users.active.map { |au| au.role.name } },
@@ -324,11 +324,10 @@ class ApplicationController < ActionController::Base
         @js_env[:LOCALE_TRANSLATION_FILE] = ::Canvas::Cdn.registry.url_for("javascripts/translations/#{@js_env[:LOCALES].first}.json")
         @js_env[:ACCOUNT_ID] = effective_account_id(@context)
         @js_env[:user_cache_key] = Base64.encode64("#{@current_user.uuid}vyfW=;[p-0?:{P_=HUpgraqe;njalkhpvoiulkimmaqewg") if @current_user&.workflow_state
-        @js_env[:horizon_course] = @context.is_a?(Course) && @context.account.feature_enabled?(:horizon_course_setting) && @context.horizon_course?
         @js_env[:top_navigation_tools] = external_tools_display_hashes(:top_navigation) if !!@domain_root_account&.feature_enabled?(:top_navigation_placement)
         @js_env[:horizon_course] = @context.is_a?(Course) && @context.horizon_course?
         # partner context data
-        if @context&.grants_right?(@current_user, session, :read)
+        if @context&.grants_any_right?(@current_user, session, :read, :read_as_admin)
           @js_env[:current_context] = {
             id: @context.id,
             name: @context.name,
@@ -358,17 +357,13 @@ class ApplicationController < ActionController::Base
   # put feature checks on Account.site_admin and @domain_root_account that we're loading for every page in here
   # so altogether we can get them faster the vast majority of the time
   JS_ENV_SITE_ADMIN_FEATURES = %i[
-    featured_help_links
     account_level_blackout_dates
     render_both_to_do_lists
     commons_new_quizzes
     course_paces_redesign
     course_paces_for_students
     explicit_latex_typesetting
-    media_links_use_attachment_id
     permanent_page_links
-    selective_release_ui_api
-    assign_to_improved_search
     enhanced_course_creation_account_fetching
     instui_for_import_page
     multiselect_gradebook_filters
@@ -378,11 +373,14 @@ class ApplicationController < ActionController::Base
     courses_popout_sisid
     dashboard_graphql_integration
     discussion_checkpoints
+    discussion_default_sort
+    discussion_default_expand
     speedgrader_studio_media_capture
     disallow_threaded_replies_fix_alert
     horizon_course_setting
     new_quizzes_media_type
     differentiation_tags
+    validate_call_to_action
   ].freeze
   JS_ENV_ROOT_ACCOUNT_FEATURES = %i[
     product_tours
@@ -390,6 +388,8 @@ class ApplicationController < ActionController::Base
     file_verifiers_for_quiz_links
     lti_deep_linking_module_index_menu_modal
     lti_registrations_next
+    lti_registrations_page
+    lti_asset_processor
     buttons_and_icons_root_account
     extended_submission_state
     scheduled_page_publication
@@ -403,7 +403,6 @@ class ApplicationController < ActionController::Base
     non_scoring_rubrics
     top_navigation_placement
     rubric_criterion_range
-    lti_migration_info
     rce_lite_enabled_speedgrader_comments
     lti_toggle_placements
     login_registration_ui_identity
@@ -411,10 +410,18 @@ class ApplicationController < ActionController::Base
     course_paces_skip_selected_days
     course_pace_download_document
     course_pace_draft_state
+    course_pace_time_selection
+    course_pace_pacing_status_labels
+    course_pace_pacing_with_mastery_paths
+    course_pace_weighted_assignments
+    modules_requirements_allow_percentage
+    discussion_checkpoints
+    course_pace_allow_bulk_pace_assign
   ].freeze
-  JS_ENV_BRAND_ACCOUNT_FEATURES = [
-    :embedded_release_notes,
-    :consolidated_media_player
+  JS_ENV_BRAND_ACCOUNT_FEATURES = %i[
+    embedded_release_notes
+    consolidated_media_player
+    discussions_speedgrader_revisit
   ].freeze
   JS_ENV_FEATURES_HASH = Digest::SHA256.hexdigest([JS_ENV_SITE_ADMIN_FEATURES + JS_ENV_ROOT_ACCOUNT_FEATURES + JS_ENV_BRAND_ACCOUNT_FEATURES].sort.join(",")).freeze
   def cached_js_env_account_features
@@ -442,10 +449,10 @@ class ApplicationController < ActionController::Base
     default_settings = %i[calendar_contexts_limit open_registration]
     if Account.site_admin.feature_enabled?(:inbox_settings)
       inbox_settings = %i[
-        inbox_auto_response
-        inbox_signature_block
-        inbox_auto_response_for_students
-        inbox_signature_block_for_students
+        enable_inbox_signature_block
+        disable_inbox_signature_block_for_students
+        enable_inbox_auto_response
+        disable_inbox_auto_response_for_students
       ]
     end
     settings = default_settings
@@ -458,7 +465,6 @@ class ApplicationController < ActionController::Base
     js_env_settings = js_env_root_account_settings
     js_env_settings_hash = Digest::SHA256.hexdigest(js_env_settings.sort.join(","))
     account_settings_hash = Digest::SHA256.hexdigest(@domain_root_account[:settings].to_s)
-
     # can be invalidated by a settings change on the domain root account
     # or an update to js_env_root_account_settings
     MultiCache.fetch(["js_env_root_account_settings", js_env_settings_hash, account_settings_hash].cache_key) do
@@ -986,6 +992,7 @@ class ApplicationController < ActionController::Base
       # Allow iframing on all vanity domains as well as the canonical one
       unless @domain_root_account.nil?
         list.concat HostUrl.context_hosts(@domain_root_account, request.host)
+        list << @domain_root_account.horizon_domain if @domain_root_account.horizon_domain
       end
     end
   end
@@ -1092,7 +1099,7 @@ class ApplicationController < ActionController::Base
         # Even if there are multiple justifications, we can only reasonably handle one at a time,
         # so just arbitrarily choose the first one
         chosen = can_do.justifications.first
-        send("render_auth_failure_#{chosen.justification}".to_s, chosen.context)
+        send(:"render_auth_failure_#{chosen.justification}", chosen.context)
       else
         render_unauthorized_action
       end
@@ -2043,7 +2050,7 @@ class ApplicationController < ActionController::Base
       data = { errors: [{ message: "Revoked access token." }] }
     when AuthenticationMethods::ExpiredAccessTokenError
       add_www_authenticate_header
-      data = { errors: [{ message: "Expired access token." }] }
+      data = { errors: [{ message: "Expired access token.", expired_at: @access_token&.permanent_expires_at }] }
     when AuthenticationMethods::AccessTokenError
       add_www_authenticate_header
       data = { errors: [{ message: "Invalid access token." }] }
@@ -2133,7 +2140,7 @@ class ApplicationController < ActionController::Base
   def content_tag_redirect(context, tag, error_redirect_symbol, tag_type = nil)
     url_params = (tag.tag_type == "context_module") ? { module_item_id: tag.id } : {}
     if tag.content_type == "Assignment"
-      use_edit_url = params[:build].nil? && @context.grants_any_right?(@current_user, :manage_assignments, :manage_assignments_edit) && tag.quiz_lti
+      use_edit_url = params[:build].nil? && @context.grants_right?(@current_user, :manage_assignments_edit) && tag.quiz_lti
       url_params[:quiz_lti] = true if use_edit_url
       redirect_symbol = use_edit_url ? :edit_context_assignment_url : :context_assignment_url
       redirect_to named_context_url(context, redirect_symbol, tag.content_id, url_params)
@@ -2649,11 +2656,6 @@ class ApplicationController < ActionController::Base
     !!(@current_user ? @pseudonym_session : session[:session_id])
   end
 
-  def json_as_text?
-    request.headers["CONTENT_TYPE"].to_s.include?("multipart/form-data") &&
-      (params[:format].to_s != "json" || in_app?)
-  end
-
   def params_are_integers?(*check_params)
     begin
       check_params.each { |p| Integer(params[p]) }
@@ -2698,13 +2700,7 @@ class ApplicationController < ActionController::Base
         json = ActiveSupport::JSON.encode(json_cast(json))
       end
 
-      # fix for some browsers not properly handling json responses to multipart
-      # file upload forms and s3 upload success redirects -- we'll respond with text instead.
-      if options[:as_text] || json_as_text?
-        options[:html] = json.html_safe
-      else
-        options[:json] = json
-      end
+      options[:json] = json
     end
 
     # _don't_ call before_render hooks if we're not returning HTML
@@ -2962,7 +2958,7 @@ class ApplicationController < ActionController::Base
 
   def common_contexts(common_courses, common_groups, current_user, session)
     courses = Course.active.where(id: common_courses.keys).to_a
-    groups = Group.active.where(id: common_groups.keys).to_a
+    groups = Group.active.where(id: common_groups.keys).collaborative.to_a
 
     common_courses = courses.map do |course|
       course_json(course, current_user, session, ["html_url"], false).merge({
@@ -3036,14 +3032,7 @@ class ApplicationController < ActionController::Base
     rights = [*RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS, :manage_grades, :read_grades, :manage]
     permissions = @context.rights_status(@current_user, *rights)
     permissions[:manage_course] = permissions[:manage]
-    if @context.root_account.feature_enabled?(:granular_permissions_manage_assignments)
-      permissions[:manage_assignments] = permissions[:manage_assignments_edit]
-      permissions[:manage] = permissions[:manage_assignments_edit]
-    else
-      permissions[:manage_assignments_add] = permissions[:manage_assignments]
-      permissions[:manage_assignments_delete] = permissions[:manage_assignments]
-      permissions[:manage] = permissions[:manage_assignments]
-    end
+    permissions[:manage] = permissions[:manage_assignments_edit]
     permissions[:by_assignment_id] = @context.assignments.to_h do |assignment|
       [assignment.id,
        {

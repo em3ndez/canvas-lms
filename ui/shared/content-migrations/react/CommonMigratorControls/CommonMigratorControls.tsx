@@ -23,13 +23,14 @@ import {Link} from '@instructure/ui-link'
 import {useScope as createI18nScope} from '@canvas/i18n'
 import {Spinner} from '@instructure/ui-spinner'
 import {Checkbox, CheckboxGroup} from '@instructure/ui-checkbox'
+import {canvas} from '@instructure/ui-theme-tokens'
 import {Button} from '@instructure/ui-buttons'
 import {RadioInput, RadioInputGroup} from '@instructure/ui-radio-input'
 import {InfoButton} from './InfoButton'
 import {DateAdjustments} from './DateAdjustments'
 import type {onSubmitMigrationFormCallback, DateAdjustmentConfig} from './types'
-import {RequiredFormLabel} from './FormLabel'
-import {ErrorFormMessage} from '../errorFormMessage'
+import {Flex} from '@instructure/ui-flex'
+import {Responsive} from '@instructure/ui-responsive'
 
 const I18n = createI18nScope('content_migrations_redesign')
 
@@ -280,19 +281,15 @@ export const CommonMigratorControls = ({
   return (
     <>
       {canSelectContent && (
-        <View as="div" margin="medium none none none" width="100%" maxWidth="28.75rem">
+        <View as="div" margin="medium none none none" width="100%" maxWidth="46.5rem">
           <RadioInputGroup
-            name={I18n.t('Selective import')}
-            layout="stacked"
-            description={
-              <RequiredFormLabel showErrorState={contentError}>
-                {I18n.t('Content')}
-              </RequiredFormLabel>
-            }
+            name="selective_import"
+            description={I18n.t('Content')}
             defaultValue="non_selective"
+            isRequired
+            messages={contentError ? [{text: I18n.t('You must choose a content option'), type: 'newError'}] : []}
           >
             <RadioInput
-              name="selective_import"
               value="non_selective"
               label={allContentText}
               onChange={(e: React.SyntheticEvent<Element, Event>) => {
@@ -318,7 +315,6 @@ export const CommonMigratorControls = ({
               ) : null}
             </>
             <RadioInput
-              name="selective_import"
               value="selective"
               label={I18n.t('Select specific content')}
               onChange={(e: React.SyntheticEvent<Element, Event>) => {
@@ -329,11 +325,6 @@ export const CommonMigratorControls = ({
               disabled={isSubmitting}
             />
           </RadioInputGroup>
-          {contentError && (
-            <p>
-              <ErrorFormMessage>{I18n.t('You must choose a content option')}</ErrorFormMessage>
-            </p>
-          )}
         </View>
       )}
 
@@ -359,25 +350,49 @@ export const CommonMigratorControls = ({
       )}
 
       <View as="div" margin="medium none none none">
-        <Button disabled={isSubmitting} onClick={onCancel} data-testid="clear-migration-button">
-          <CancelLabel />
-        </Button>
-        <Button
-          disabled={isSubmitting}
-          data-testid="submitMigration"
-          onClick={handleSubmit}
-          margin="small"
-          color="primary"
+        <Responsive
+          match="media"
+          query={{
+            small: {maxWidth: canvas.breakpoints.medium},
+          }}
         >
-          {isSubmitting ? (
-            <>
-              <Spinner size="x-small" renderTitle={<SubmittingLabel />} /> &nbsp;
-              <SubmittingLabel />
-            </>
-          ) : (
-            <SubmitLabel />
-          )}
-        </Button>
+          {(_props, matches) => {
+            const isMobileView = matches?.includes('small') || false
+            return (
+              <Flex as="div" direction={isMobileView ? 'column' : 'row'}>
+                <Button
+                  disabled={isSubmitting}
+                  data-testid="clear-migration-button"
+                  onClick={onCancel}
+                  color="secondary"
+                  width={isMobileView ? '100%' : '8.5rem'}
+                  margin={isMobileView ? "none none small none" : "none small none none"}
+                  textAlign="center"
+                  
+                >
+                  <CancelLabel />
+                </Button>
+                <Button
+                  disabled={isSubmitting}
+                  data-testid="submitMigration"
+                  onClick={handleSubmit}
+                  color="primary"
+                  width={isMobileView ? '100%' : '8.5rem'}
+                  textAlign="center"
+                >
+                  {isSubmitting ? (
+                  <>
+                    <Spinner size="x-small" renderTitle={<SubmittingLabel />} /> &nbsp;
+                    <SubmittingLabel />
+                  </>
+                ) : (
+                  <SubmitLabel />
+                )}
+                </Button>
+              </Flex>
+            )
+          }}
+        </Responsive>
       </View>
     </>
   )

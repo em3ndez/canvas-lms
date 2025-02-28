@@ -48,6 +48,7 @@ import {LoadingSpinner} from './components/LoadingSpinner/LoadingSpinner'
 import useNavigateEntries from './hooks/useNavigateEntries'
 import WithBreakpoints, {breakpointsShape} from '@canvas/with-breakpoints'
 import DiscussionTopicToolbarContainer from './containers/DiscussionTopicToolbarContainer/DiscussionTopicToolbarContainer'
+import StickyToolbarWrapper from './containers/StickyToolbarWrapper/StickyToolbarWrapper'
 
 const I18n = createI18nScope('discussion_topics_post')
 
@@ -67,6 +68,7 @@ const DiscussionTopicManager = props => {
   const [showTranslationControl, setShowTranslationControl] = useState(false)
   // Start as null, populate when ready.
   const [translateTargetLanguage, setTranslateTargetLanguage] = useState(null)
+  const [translationLoading, setTranslationLoading] = useState(false)
   const [focusSelector, setFocusSelector] = useState('')
 
   const searchContext = {
@@ -151,6 +153,8 @@ const DiscussionTopicManager = props => {
     setShowTranslationControl,
     translateTargetLanguage,
     setTranslateTargetLanguage,
+    translationLoading,
+    setTranslationLoading,
     isSummaryEnabled,
     setIsSummaryEnabled,
   }
@@ -349,16 +353,7 @@ const DiscussionTopicManager = props => {
     updateCache,
   )
 
-  // why || waitForUnreadFilter: when waitForUnreadFilter, discussionTopicQuery is skipped, but this does not set loading.
-  // why && !searchTerm: this is for the search if you type it triggers useQuery and you lose the search.
-  // why not just discussionTopicQuery.loading, it doesnt play nice with search term.
-  if (
-    (discussionTopicQuery.loading && !searchTerm) ||
-    waitForUnreadFilter ||
-    (discussionTopicQuery.loading &&
-      discussionTopicQuery?.data &&
-      Object.keys(discussionTopicQuery.data).length === 0)
-  ) {
+  if (discussionTopicQuery.loading || waitForUnreadFilter) {
     return <LoadingSpinner />
   }
 
@@ -404,6 +399,9 @@ const DiscussionTopicManager = props => {
                   <Mask onClick={() => closeView()} />
                 )}
                 <DrawerLayout.Content
+                  // please keep in mind that this id is used for determining
+                  // the width of StickyToolbarWrapper upon window resize
+                  id="discussion-drawer-layout"
                   label="Splitscreen View Content"
                   themeOverride={{
                     overflowY: 'unset',
@@ -416,15 +414,29 @@ const DiscussionTopicManager = props => {
                     overflowY="auto"
                     id="module_sequence_footer_container"
                   >
-                    <DiscussionTopicToolbarContainer
-                      discussionTopic={discussionTopicQuery.data.legacyNode}
-                      setUserSplitScreenPreference={setUserSplitScreenPreference}
-                      userSplitScreenPreference={userSplitScreenPreference}
-                      setIsSummaryEnabled={setIsSummaryEnabled}
-                      isSummaryEnabled={isSummaryEnabled}
-                      closeView={closeView}
-                      breakpoints={props.breakpoints}
-                    />
+                    {ENV?.FEATURES?.discussions_speedgrader_revisit && isSpeedGraderInTopUrl ? (
+                      <StickyToolbarWrapper>
+                        <DiscussionTopicToolbarContainer
+                          discussionTopic={discussionTopicQuery.data.legacyNode}
+                          setUserSplitScreenPreference={setUserSplitScreenPreference}
+                          userSplitScreenPreference={userSplitScreenPreference}
+                          setIsSummaryEnabled={setIsSummaryEnabled}
+                          isSummaryEnabled={isSummaryEnabled}
+                          closeView={closeView}
+                          breakpoints={props.breakpoints}
+                        />
+                      </StickyToolbarWrapper>
+                    ) : (
+                      <DiscussionTopicToolbarContainer
+                        discussionTopic={discussionTopicQuery.data.legacyNode}
+                        setUserSplitScreenPreference={setUserSplitScreenPreference}
+                        userSplitScreenPreference={userSplitScreenPreference}
+                        setIsSummaryEnabled={setIsSummaryEnabled}
+                        isSummaryEnabled={isSummaryEnabled}
+                        closeView={closeView}
+                        breakpoints={props.breakpoints}
+                      />
+                    )}
                     <DiscussionTopicContainer
                       discussionTopic={discussionTopicQuery.data.legacyNode}
                       expandedTopicReply={expandedTopicReply}

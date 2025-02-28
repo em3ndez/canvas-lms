@@ -99,7 +99,8 @@ class RubricAssociation < ActiveRecord::Base
 
   set_broadcast_policy do |p|
     p.dispatch :rubric_association_created
-    p.to { context.students }
+    p.to { context.respond_to?(:students) ? context.students : [] }
+
     p.whenever do |record|
       record.just_created && !record.context.is_a?(Course)
     end
@@ -202,7 +203,7 @@ class RubricAssociation < ActiveRecord::Base
 
   def user_can_self_assess_for?(assessor: nil, assessee: nil, assessment_type: nil)
     assessment_type == "self_assessment" &&
-      assignment&.rubric_self_assessment_enabled &&
+      assignment&.rubric_self_assessment_enabled? &&
       assessor == assessee &&
       rubric_assessments.where(assessment_type: "self_assessment", user_id: assessor).empty?
   end
@@ -342,7 +343,7 @@ class RubricAssociation < ActiveRecord::Base
       next unless data
 
       replace_ratings = true
-      has_score = (data[:points]).present?
+      has_score = data[:points].present?
       rating[:id] = data[:rating_id]
       rating[:points] = assessment_points(criterion, data) if has_score
 

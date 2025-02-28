@@ -16,18 +16,18 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {replaceLocation} from '@canvas/util/globalUtils'
+import {assignLocation} from '@canvas/util/globalUtils'
 import {createErrorMessage, handleRegistrationRedirect} from '../helpers'
 
 jest.mock('@canvas/util/globalUtils', () => ({
-  replaceLocation: jest.fn(),
+  assignLocation: jest.fn(),
 }))
 
 describe('Helpers', () => {
   describe('createErrorMessage', () => {
     it('should return a FormMessage array with an error when text is provided', () => {
       const result = createErrorMessage('This is an error')
-      expect(result).toEqual([{type: 'error', text: 'This is an error'}])
+      expect(result).toEqual([{type: 'newError', text: 'This is an error'}])
     })
 
     it('should return an empty array when no text is provided', () => {
@@ -39,7 +39,7 @@ describe('Helpers', () => {
   describe('handleRegistrationRedirect', () => {
     it('should redirect to destination if destination is provided', () => {
       handleRegistrationRedirect({destination: '/dashboard'})
-      expect(replaceLocation).toHaveBeenCalledWith('/dashboard')
+      expect(assignLocation).toHaveBeenCalledWith('/dashboard')
     })
 
     it('should redirect to course URL if course data is provided', () => {
@@ -50,12 +50,12 @@ describe('Helpers', () => {
           },
         },
       })
-      expect(replaceLocation).toHaveBeenCalledWith('/courses/123?registration_success=1')
+      expect(assignLocation).toHaveBeenCalledWith('/courses/123?registration_success=1')
     })
 
     it('should redirect to default URL if no destination or course is provided', () => {
       handleRegistrationRedirect({})
-      expect(replaceLocation).toHaveBeenCalledWith('/?registration_success=1')
+      expect(assignLocation).toHaveBeenCalledWith('/?registration_success=1')
     })
   })
 })

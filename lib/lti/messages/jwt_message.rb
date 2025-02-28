@@ -129,7 +129,7 @@ module Lti::Messages
     end
 
     def add_context_claims!
-      @message.context.id = Lti::Asset.opaque_identifier_for(@context)
+      @message.context.id = Lti::V1p1::Asset.opaque_identifier_for(@context)
       @message.context.label = @context.course_code if @context.respond_to?(:course_code)
       @message.context.title = @context.name
       @message.context.type = [Lti::SubstitutionsHelper::LIS_V2_ROLE_MAP[@context.class] || @context.class.to_s]
@@ -232,7 +232,7 @@ module Lti::Messages
       @message.assignment_and_grade_service.scope = @tool.developer_key.scopes & TokenScopes::LTI_AGS_SCOPES
 
       @message.assignment_and_grade_service.lineitems =
-        @expander.controller.lti_line_item_index_url(
+        Rails.application.routes.url_helpers.lti_line_item_index_url(
           host: @context.root_account.environment_specific_domain, course_id: course_id_for_ags_url
         )
     end
@@ -272,7 +272,8 @@ module Lti::Messages
     def include_names_and_roles_service_claims?
       include_claims?(:names_and_roles_service) &&
         (@context.is_a?(Course) || @context.is_a?(Group)) &&
-        @tool.developer_key&.scopes&.include?(TokenScopes::LTI_NRPS_V2_SCOPE)
+        @tool.developer_key&.scopes&.include?(TokenScopes::LTI_NRPS_V2_SCOPE) &&
+        @expander.controller.present?
     end
 
     def add_names_and_roles_service_claims!

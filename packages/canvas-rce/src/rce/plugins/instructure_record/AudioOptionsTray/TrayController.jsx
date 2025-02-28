@@ -17,7 +17,7 @@
  */
 
 import React from 'react'
-import { createRoot } from 'react-dom/client'
+import ReactDOM from 'react-dom'
 
 import bridge from '../../../../bridge'
 import {asAudioElement, findMediaPlayerIframe} from '../../shared/ContentSelection'
@@ -32,7 +32,6 @@ export default class TrayController {
     this._shouldOpen = false
     this._editor = null
     this._audioContainer = null
-    this._root = null
   }
 
   get container() {
@@ -82,19 +81,12 @@ export default class TrayController {
     this._renderTray(trayProps)
     this._editor = null
     this._audioContainer = null
-    if (this._root) {
-      this._root.unmount()
-      this._root = null
-    }
     const elem = document.getElementById(CONTAINER_ID)
-    if (elem) {
-      elem.parentNode.removeChild(elem)
-    }
+    return elem.parentNode.removeChild(elem)
   }
 
   _applyAudioOptions(audioOptions) {
-    const hasAttachmentId =
-      RCEGlobals.getFeatures().media_links_use_attachment_id && audioOptions.attachment_id
+    const hasAttachmentId = audioOptions.attachment_id
 
     if (
       !hasAttachmentId &&
@@ -128,12 +120,12 @@ export default class TrayController {
           cb(event?.data?.payload)
         }
       },
-      {signal: this._subtitleListener.signal}
+      {signal: this._subtitleListener.signal},
     )
 
     this._audioContainer?.contentWindow?.postMessage(
       {subject: 'media_tracks_request'},
-      bridge.canvasOrigin
+      bridge.canvasOrigin,
     )
   }
 
@@ -161,9 +153,6 @@ export default class TrayController {
         requestSubtitlesFromIframe={cb => this.requestSubtitlesFromIframe(cb)}
       />
     )
-    if (!this._root) {
-      this._root = createRoot(this.container)
-    }
-    this._root.render(element)
+    ReactDOM.render(element, this.container)
   }
 }

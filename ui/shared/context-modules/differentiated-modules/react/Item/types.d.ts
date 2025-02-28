@@ -45,6 +45,7 @@ export interface exportedOverride {
   course_id?: string | null
   group_id?: string
   group_category_id?: string
+  non_collaborative?: boolean
   name: string
   type: string
   noop_id: string
@@ -129,6 +130,7 @@ export interface AssigneeOption {
   value: string
   sisID?: string
   groupCategoryId?: string
+  groupCategoryName?: string
   overrideId?: string
   group?: string
 }

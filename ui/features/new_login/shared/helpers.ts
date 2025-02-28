@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {replaceLocation} from '@canvas/util/globalUtils'
+import {assignLocation} from '@canvas/util/globalUtils'
 import type {FormMessage} from '@instructure/ui-form-field'
 
 /**
@@ -37,7 +37,7 @@ export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
  * @returns FormMessage[]
  */
 export const createErrorMessage = (text: string): FormMessage[] =>
-  text ? [{type: 'error', text}] : []
+  text ? [{type: 'newError', text}] : []
 
 /**
  * Handle possible redirects after successful registration
@@ -45,10 +45,10 @@ export const createErrorMessage = (text: string): FormMessage[] =>
  */
 export const handleRegistrationRedirect = (data: any): void => {
   if (data.destination) {
-    replaceLocation(data.destination)
+    assignLocation(data.destination)
   } else if (data.course) {
-    replaceLocation(`/courses/${data.course.course.id}?registration_success=1`)
+    assignLocation(`/courses/${data.course.course.id}?registration_success=1`)
   } else {
-    replaceLocation('/?registration_success=1')
+    assignLocation('/?registration_success=1')
   }
 }

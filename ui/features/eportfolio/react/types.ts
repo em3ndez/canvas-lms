@@ -25,11 +25,22 @@ export type ePortfolio = {
   id: number
   name: string
   public: boolean
-  profile_url: string
+  profile_url: string | null
+  eportfolio_url?: string
 }
 export type ePortfolioSection = {
   id: number
   name: string
   position: number
   category_url: string
+}
+
+export type NamedSubmission = {
+  id: string
+  name: string
+  attachment_count: number
+  course_name: string
+  assignment_name: string
+  preview_url: string
+  submitted_at: string
 }

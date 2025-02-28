@@ -37,6 +37,12 @@ describe Course do
       @course.enrollment_term = Account.default.default_enrollment_term
     end
 
+    context "moved_sections" do
+      describe "relationships" do
+        it { is_expected.to have_many(:moved_sections).class_name("CourseSection") }
+      end
+    end
+
     context "outcome imports" do
       include_examples "outcome import context examples"
 
@@ -1652,6 +1658,51 @@ describe Course do
     expect { Marshal.dump(c) }.not_to raise_error
   end
 
+  describe "users_visible_to with section filtering" do
+    before :once do
+      @course = Account.default.courses.create!
+      @section1 = @course.course_sections.create!(name: "Section 1")
+      @section2 = @course.course_sections.create!(name: "Section 2")
+      @section3 = @course.course_sections.create!(name: "Section 3")
+      @student1 = user_with_pseudonym
+      @student2 = user_with_pseudonym
+      @student3 = user_with_pseudonym
+      @course.enroll_student(@student1, section: @section1, enrollment_state: "active")
+      @course.enroll_student(@student2, section: @section2, enrollment_state: "active")
+      @course.enroll_student(@student3, section: @section3, enrollment_state: "active")
+      @teacher = user_with_pseudonym
+      @course.enroll_teacher(@teacher, enrollment_state: "active")
+    end
+
+    it "filters users by section_ids" do
+      visible_users = @course.users_visible_to(@teacher, false, section_ids: [@section1.id, @section2.id])
+      expect(visible_users.pluck(:id)).to include(@student1.id, @student2.id)
+      expect(visible_users.pluck(:id)).not_to include(@student3.id)
+    end
+
+    it "returns all users when no section_ids are provided" do
+      visible_users = @course.users_visible_to(@teacher)
+      expect(visible_users.pluck(:id)).to include(@student1.id, @student2.id, @student3.id)
+    end
+
+    it "returns empty when filtering by non-existent section" do
+      visible_users = @course.users_visible_to(@teacher, false, section_ids: [99_999])
+      expect(visible_users.count).to eq(0)
+    end
+
+    it "handles section filtering with enrollment state filtering" do
+      @course.enrollments.where(user_id: @student2.id).first.conclude
+      visible_users = @course.users_visible_to(
+        @teacher,
+        false,
+        section_ids: [@section1.id, @section2.id],
+        exclude_enrollment_state: "completed"
+      )
+      expect(visible_users.pluck(:id)).to include(@student1.id)
+      expect(visible_users.pluck(:id)).not_to include(@student2.id, @student3.id)
+    end
+  end
+
   describe "course_section_visibility" do
     before :once do
       @course = Account.default.courses.create!
@@ -3033,7 +3084,7 @@ describe Course do
 
       describe "with horizon_course account setting on" do
         before :once do
-          Account.default.enable_feature!(:horizon_course_setting)
+          @course.account.enable_feature!(:horizon_course_setting)
           @course.update!(horizon_course: true)
           @course.save!
         end
@@ -5943,39 +5994,6 @@ describe Course do
         @shard1.activate do
           acct = Account.create!
           course_with_student(active_all: 1, account: acct)
-          @course.root_account.disable_feature!(:granular_permissions_manage_course_content)
-        end
-        @site_admin = user_factory
-        site_admin = Account.site_admin
-        site_admin.account_users.create!(user: @user)
-
-        @shard1.activate do
-          expect(@course.grants_right?(@site_admin, :manage_content)).to be_truthy
-          expect(@course.grants_right?(@teacher, :manage_content)).to be_truthy
-          expect(@course.grants_right?(@student, :manage_content)).to be_falsey
-        end
-
-        expect(@course.grants_right?(@site_admin, :manage_content)).to be_truthy
-      end
-
-      enable_cache do
-        # do it in a different order
-        @shard1.activate do
-          expect(@course.grants_right?(@student, :manage_content)).to be_falsey
-          expect(@course.grants_right?(@teacher, :manage_content)).to be_truthy
-          expect(@course.grants_right?(@site_admin, :manage_content)).to be_truthy
-        end
-
-        expect(@course.grants_right?(@site_admin, :manage_content)).to be_truthy
-      end
-    end
-
-    it "properly returns site admin permissions from another shard (granular permissions)" do
-      enable_cache do
-        @shard1.activate do
-          acct = Account.create!
-          course_with_student(active_all: 1, account: acct)
-          @course.root_account.enable_feature!(:granular_permissions_manage_course_content)
         end
         @site_admin = user_factory
         site_admin = Account.site_admin
@@ -6716,7 +6734,7 @@ describe Course do
 
     it "shows all modules to teachers even when course is concluded" do
       @course.complete!
-      expect(@course.grants_right?(@teacher, :manage_content)).to be(false)
+      expect(@course.grants_right?(@teacher, :manage_course_content_edit)).to be(false)
       expect(@course.modules_visible_to(@teacher).pluck(:name)).to contain_exactly("published 1", "published 2", "unpublished")
     end
 

@@ -16,7 +16,6 @@
 #
 # You should have received a copy of the GNU Affero General Public License along
 # with this program. If not, see <http://www.gnu.org/licenses/>.
-require_relative "../../lti_1_3_spec_helper"
 
 RSpec.describe Lti::Registration do
   let(:user) { user_model }
@@ -161,11 +160,10 @@ RSpec.describe Lti::Registration do
     end
 
     context "when tool_configuration is present" do
-      let!(:tool_configuration) do
-        dk = dev_key_model_1_3
-        dk.tool_configuration.update!(lti_registration: registration)
-        dk.tool_configuration
-      end
+      let(:developer_key) { lti_developer_key_model(account: account) }
+      let(:tool_configuration) { lti_tool_configuration_model(developer_key:, lti_registration: registration) }
+
+      before { tool_configuration }
 
       it "returns the manual_configuration" do
         expect(subject).to eq(tool_configuration.internal_lti_configuration.with_indifferent_access)
@@ -251,7 +249,8 @@ RSpec.describe Lti::Registration do
     let_once(:registration) { lti_registration_model(account:) }
 
     context "the registration is associated with a manual registration" do
-      include_context "lti_1_3_spec_helper"
+      let_once(:developer_key) { lti_developer_key_model(account:) }
+      let_once(:tool_configuration) { lti_tool_configuration_model(developer_key:, lti_registration: developer_key.lti_registration) }
 
       before do
         tool_configuration.update!(lti_registration: registration, placements: [{ placement: "global_navigation", target_link_uri: "https://example.com/launch" }])
@@ -322,13 +321,12 @@ RSpec.describe Lti::Registration do
 
     context "when a tool configuration is present" do
       let!(:tool_configuration) do
-        dk = dev_key_model_1_3
-        dk.tool_configuration.update!(lti_registration: registration)
-        dk.tool_configuration
+        dk = lti_developer_key_model
+        lti_tool_configuration_model(developer_key: dk, lti_registration: registration)
       end
 
       it "returns the logo_uri" do
-        expect(subject).to eq(tool_configuration.settings["extensions"].first["settings"]["icon_url"])
+        expect(subject).to eq(tool_configuration.launch_settings["icon_url"])
       end
     end
 
@@ -500,209 +498,6 @@ RSpec.describe Lti::Registration do
           expect(@shard2.activate { subject }).to eq(overlay)
         end
       end
-    end
-  end
-
-  describe ".preload_account_bindings" do
-    subject { Lti::Registration.preload_account_bindings(registrations, account) }
-
-    let(:account) { account_model }
-    let(:registrations) { [] }
-
-    def expect_preloaded_bindings(registrations)
-      registrations.each do |registration|
-        expect(registration.send(:preloaded_account_binding)).to be_present
-      end
-    end
-
-    context "when account is nil" do
-      let(:account) { nil }
-
-      it "returns nil" do
-        expect(subject).to be_nil
-      end
-    end
-
-    context "when account is not root account" do
-      let(:root_account) { account_model }
-      let(:account) { account_model(parent_account: root_account) }
-
-      let(:registrations) { [lti_registration_model(account: root_account, bound: true)] }
-
-      it "preloads bindings for nearest root account" do
-        subject
-        expect_preloaded_bindings(registrations)
-      end
-    end
-
-    context "with account-level registrations" do
-      let(:registrations) do
-        [
-          lti_registration_model(account:, bound: true, name: "first"),
-          lti_registration_model(account:, bound: true, name: "second")
-        ]
-      end
-
-      it "preloads account_binding on registrations" do
-        subject
-        expect_preloaded_bindings(registrations)
-      end
-    end
-
-    context "with site admin registrations" do
-      let(:registrations) do
-        [
-          lti_registration_model(account:, bound: true, name: "first"),
-          lti_registration_model(account: Account.site_admin, bound: true, name: "second")
-        ]
-      end
-
-      it "preloads bindings from site admin registrations" do
-        subject
-        expect_preloaded_bindings(registrations)
-      end
-
-      context "with sharding" do
-        specs_require_sharding
-
-        let(:account_registration) { @shard2.activate { lti_registration_model(account:, bound: true, name: "account") } }
-        let(:site_admin_registration) { Shard.default.activate { lti_registration_model(account: Account.site_admin, bound: true, name: "site admin") } }
-        let(:registrations) { [account_registration, site_admin_registration] }
-
-        it "preloads bindings from site admin registrations" do
-          @shard2.activate { subject }
-          expect_preloaded_bindings(registrations)
-        end
-      end
-    end
-  end
-
-  describe ".associate_bindings" do
-    subject { Lti::Registration.send :associate_bindings, registrations, account_bindings }
-
-    let(:registrations) { [lti_registration_model] }
-    let(:account_bindings) { [lti_registration_account_binding_model(registration: registrations.first)] }
-
-    context "when binding has no matching registration" do
-      before do
-        account_bindings << lti_registration_account_binding_model
-      end
-
-      it "does not error" do
-        expect { subject }.not_to raise_error
-      end
-
-      it "associates bindings with registrations" do
-        subject
-        expect(registrations.first.send(:preloaded_account_binding)).to eq(account_bindings.first)
-      end
-    end
-
-    it "associates bindings with registrations" do
-      subject
-      expect(registrations.first.send(:preloaded_account_binding)).to eq(account_bindings.first)
-    end
-  end
-
-  describe ".preload_overlays" do
-    subject { Lti::Registration.preload_overlays(registrations, account) }
-
-    let(:account) { account_model }
-    let(:registrations) { [] }
-    let(:overlay) { { title: "Test" } }
-
-    def expect_preloaded_overlays(registrations)
-      registrations.each do |registration|
-        expect(registration.send(:preloaded_overlay)).to be_present
-      end
-    end
-
-    context "when account is nil" do
-      let(:account) { nil }
-
-      it "returns nil" do
-        expect(subject).to be_nil
-      end
-    end
-
-    context "when account is not root account" do
-      let(:root_account) { account_model }
-      let(:account) { account_model(parent_account: root_account) }
-
-      let(:registrations) { [lti_registration_model(account: root_account, overlay:)] }
-
-      it "preloads overlays for nearest root account" do
-        subject
-        expect_preloaded_overlays(registrations)
-      end
-    end
-
-    context "with account-level registrations" do
-      let(:registrations) do
-        [
-          lti_registration_model(account:, overlay:, name: "first"),
-          lti_registration_model(account:, overlay:, name: "second")
-        ]
-      end
-
-      it "preloads overlays on registrations" do
-        subject
-        expect_preloaded_overlays(registrations)
-      end
-    end
-
-    context "with site admin registrations" do
-      let(:registrations) do
-        [
-          lti_registration_model(account:, overlay:, name: "first"),
-          lti_registration_model(account: Account.site_admin, overlay:, name: "second")
-        ]
-      end
-
-      it "preloads overlays from site admin registrations" do
-        subject
-        expect_preloaded_overlays(registrations)
-      end
-
-      context "with sharding" do
-        specs_require_sharding
-
-        let(:account_registration) { @shard2.activate { lti_registration_model(account:, overlay:, name: "account") } }
-        let(:site_admin_registration) { Shard.default.activate { lti_registration_model(account: Account.site_admin, overlay:, name: "site admin") } }
-        let(:registrations) { [account_registration, site_admin_registration] }
-
-        it "preloads overlays from site admin registrations" do
-          @shard2.activate { subject }
-          expect_preloaded_overlays(registrations)
-        end
-      end
-    end
-  end
-
-  describe ".associate_overlays" do
-    subject { Lti::Registration.send :associate_overlays, registrations, overlays }
-
-    let(:registrations) { [lti_registration_model] }
-    let(:overlays) { [lti_overlay_model(registration: registrations.first)] }
-
-    context "when overlay has no matching registration" do
-      before do
-        overlays << lti_overlay_model
-      end
-
-      it "does not error" do
-        expect { subject }.not_to raise_error
-      end
-
-      it "associates overlays with registrations" do
-        subject
-        expect(registrations.first.send(:preloaded_overlay)).to eq(overlays.first)
-      end
-    end
-
-    it "associates overlays with registrations" do
-      subject
-      expect(registrations.first.send(:preloaded_overlay)).to eq(overlays.first)
     end
   end
 
